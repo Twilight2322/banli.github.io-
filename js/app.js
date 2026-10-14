@@ -180,11 +180,10 @@ function loginWithAccount(userId) {
     const user = getUser(userId);
     if (!user) return;
     
-    // 显示密码输入
     document.getElementById('username').value = user.username;
+    document.getElementById('password').value = '';
     document.getElementById('password').focus();
     
-    // 切换到登录模式
     if (!isLoginMode) {
         toggleAuthMode();
     }
@@ -402,7 +401,6 @@ function resetPassword(e) {
         return;
     }
     
-    // 重置所有账号的密码
     const users = getAllUsers();
     const userIds = Object.keys(users);
     if (userIds.length === 0) {
@@ -410,7 +408,6 @@ function resetPassword(e) {
         return;
     }
     
-    // 重置第一个账号（或可以扩展选择特定账号）
     const firstUserId = userIds[0];
     users[firstUserId].password = hashPassword(newPassword);
     localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
@@ -519,10 +516,8 @@ function acceptFriendRequest(requestId) {
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
     
-    // 添加好友关系（双向）
     const friends = getFriends();
     
-    // 添加到当前用户的好友列表
     if (!friends[currentUser.userId]) {
         friends[currentUser.userId] = [];
     }
@@ -530,7 +525,6 @@ function acceptFriendRequest(requestId) {
         friends[currentUser.userId].push(request.from);
     }
     
-    // 添加到对方的好友列表
     if (!friends[request.from]) {
         friends[request.from] = [];
     }
@@ -540,7 +534,6 @@ function acceptFriendRequest(requestId) {
     
     saveFriends(friends);
     
-    // 删除请求
     const newRequests = requests.filter(r => r.id !== requestId);
     saveFriendRequests(newRequests);
     
@@ -561,12 +554,10 @@ function removeFriend(friendId) {
     
     const friends = getFriends();
     
-    // 从当前用户的好友列表删除
     if (friends[currentUser.userId]) {
         friends[currentUser.userId] = friends[currentUser.userId].filter(id => id !== friendId);
     }
     
-    // 从对方的好友列表删除
     if (friends[friendId]) {
         friends[friendId] = friends[friendId].filter(id => id !== currentUser.userId);
     }
@@ -582,7 +573,6 @@ function loadFriends() {
     const requests = getFriendRequests();
     const users = getAllUsers();
     
-    // 显示好友请求
     const requestsSection = document.getElementById('friend-requests-section');
     const requestsList = document.getElementById('friend-requests-list');
     const myRequests = requests.filter(r => r.to === currentUser.userId);
@@ -613,7 +603,6 @@ function loadFriends() {
         requestsSection.style.display = 'none';
     }
     
-    // 显示好友列表
     const friendsList = document.getElementById('friends-list');
     const friendsEmpty = document.getElementById('friends-empty');
     const myFriends = friends[currentUser.userId] || [];
@@ -872,4 +861,349 @@ function createFeedItem(item) {
             fileHtml = `<div class="feed-image"><img src="${item.image}" alt=""></div>`;
         } else {
             const icon = getFileIcon(item.fileName || '');
-            fileHtml = `<a href
+            fileHtml = `<a href="${item.image}" download="${item.fileName || 'file'}" class="feed-file">
+                <span class="feed-file-icon">${icon}</span>
+                <span class="feed-file-name">${escapeHtml(item.fileName || '附件')} (${item.fileSize || ''})</span>
+            </a>`;
+        }
+    }
+    
+    return `
+        <div class="feed-item">
+            <div class="feed-header">
+                <div class="feed-avatar">${avatarHtml}</div>
+                <div class="feed-info">
+                    <div class="feed-author">${escapeHtml(currentUser.username)}</div>
+                    <div class="feed-user-id">${currentUser.userId || ''}</div>
+                    <div class="feed-time">${date}</div>
+                </div>
+                <span class="feed-type ${item.type}">${typeName}</span>
+            </div>
+            <div class="feed-content">
+                <div class="feed-title">${escapeHtml(item.title)}</div>
+                <div class="feed-text">${escapeHtml(item.content)}</div>
+                ${fileHtml}
+                ${tags ? `<div class="feed-tags">${tags}</div>` : ''}
+            </div>
+            <div class="feed-actions">
+                <button class="feed-action" onclick="shareToWeChat('${item.id}', '${item.type}')">📤 分享到微信</button>
+                <button class="feed-action" onclick="editItem('${item.type}', '${item.id}')">✏️ 编辑</button>
+                <button class="feed-action delete" onclick="deleteItem('${item.type}', '${item.id}')">🗑️ 删除</button>
+            </div>
+        </div>
+    `;
+}
+
+function loadLifeRecords() {
+    const records = getLifeRecords();
+    const container = document.getElementById('life-list');
+    const emptyState = document.getElementById('life-empty');
+    
+    if (records.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    container.innerHTML = records.map(r => createCard(r, 'life')).join('');
+}
+
+function loadWorks() {
+    const works = getWorks();
+    const container = document.getElementById('works-list');
+    const emptyState = document.getElementById('works-empty');
+    
+    if (works.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    container.innerHTML = works.map(w => createCard(w, 'work')).join('');
+}
+
+function createCard(item, type) {
+    const date = new Date(item.date).toLocaleDateString('zh-CN');
+    const tags = item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : '';
+    
+    let fileHtml = '';
+    if (item.image) {
+        if (item.fileType && item.fileType.startsWith('image/')) {
+            fileHtml = `<div class="card-image"><img src="${item.image}" alt=""></div>`;
+        } else {
+            fileHtml = `<div class="card-tags"><span class="tag">📎 ${escapeHtml(item.fileName || '附件')}</span></div>`;
+        }
+    }
+    
+    return `
+        <div class="card" onclick="viewItem('${type}', '${item.id}')">
+            <div class="card-date">${date}</div>
+            <div class="card-title">${escapeHtml(item.title)}</div>
+            <div class="card-content">${escapeHtml(item.content)}</div>
+            ${fileHtml}
+            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+            <div class="card-actions" onclick="event.stopPropagation()">
+                <button onclick="shareToWeChat('${item.id}', '${type}')">分享</button>
+                <button onclick="editItem('${type}', '${item.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteItem('${type}', '${item.id}')">删除</button>
+            </div>
+        </div>
+    `;
+}
+
+function getLifeRecords() {
+    const data = localStorage.getItem(StorageKeys.LIFE);
+    return data ? JSON.parse(data) : [];
+}
+
+function getWorks() {
+    const data = localStorage.getItem(StorageKeys.WORKS);
+    return data ? JSON.parse(data) : [];
+}
+
+function previewFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        tempImageData = event.target.result;
+        tempFileName = file.name;
+        tempFileType = file.type;
+        tempFileSize = formatFileSize(file.size);
+        
+        const preview = document.getElementById('image-preview');
+        
+        if (file.type.startsWith('image/')) {
+            preview.innerHTML = `<img src="${tempImageData}" alt="预览">`;
+        } else {
+            const icon = getFileIcon(file.name);
+            preview.innerHTML = `
+                <div class="file-preview">
+                    <span class="file-icon">${icon}</span>
+                    <div class="file-info">
+                        <div class="file-name">${escapeHtml(file.name)}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <button type="button" class="file-remove" onclick="removeFile()">×</button>
+                </div>
+            `;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeFile() {
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('item-image').value = '';
+    document.getElementById('image-preview').innerHTML = '';
+}
+
+function getFileIcon(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const icons = {
+        'pdf': '📄',
+        'doc': '📝', 'docx': '📝',
+        'ppt': '📊', 'pptx': '📊',
+        'xls': '📈', 'xlsx': '📈',
+        'json': '📋',
+        'txt': '📃',
+        'zip': '📦', 'rar': '📦',
+        'mp3': '🎵', 'wav': '🎵',
+        'mp4': '🎬', 'avi': '🎬',
+    };
+    return icons[ext] || '📎';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function openModal(type, itemId = null) {
+    const modal = document.getElementById('modal');
+    const form = document.getElementById('modal-form');
+    const title = document.getElementById('modal-title');
+    
+    form.reset();
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('image-preview').innerHTML = '';
+    document.getElementById('item-type').value = type;
+    document.getElementById('item-id').value = itemId || '';
+    
+    title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
+    document.getElementById('item-date').valueAsDate = new Date();
+    
+    if (itemId) {
+        const items = type === 'life' ? getLifeRecords() : getWorks();
+        const item = items.find(i => i.id === itemId);
+        if (item) {
+            document.getElementById('item-title').value = item.title;
+            document.getElementById('item-content').value = item.content;
+            document.getElementById('item-date').value = item.date;
+            document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
+            if (item.image) {
+                tempImageData = item.image;
+                tempFileName = item.fileName;
+                tempFileType = item.fileType;
+                tempFileSize = item.fileSize;
+                
+                const preview = document.getElementById('image-preview');
+                if (item.fileType && item.fileType.startsWith('image/')) {
+                    preview.innerHTML = `<img src="${item.image}" alt="预览">`;
+                } else {
+                    const icon = getFileIcon(item.fileName || '');
+                    preview.innerHTML = `
+                        <div class="file-preview">
+                            <span class="file-icon">${icon}</span>
+                            <div class="file-info">
+                                <div class="file-name">${escapeHtml(item.fileName || '附件')}</div>
+                                <div class="file-size">${item.fileSize || ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal')) return;
+    document.getElementById('modal').classList.remove('show');
+}
+
+function saveItem(e) {
+    e.preventDefault();
+    
+    const type = document.getElementById('item-type').value;
+    const itemId = document.getElementById('item-id').value;
+    const title = document.getElementById('item-title').value.trim();
+    const content = document.getElementById('item-content').value.trim();
+    const date = document.getElementById('item-date').value;
+    const tagsInput = document.getElementById('item-tags').value.trim();
+    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+    
+    const item = {
+        id: itemId || generateId(),
+        title, content, date, tags,
+        image: tempImageData,
+        fileName: tempFileName,
+        fileType: tempFileType,
+        fileSize: tempFileSize,
+        updatedAt: new Date().toISOString()
+    };
+    
+    if (type === 'life') {
+        const records = getLifeRecords();
+        if (itemId) {
+            const index = records.findIndex(r => r.id === itemId);
+            if (index > -1) records[index] = item;
+        } else {
+            records.unshift(item);
+        }
+        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
+    } else {
+        const works = getWorks();
+        if (itemId) {
+            const index = works.findIndex(w => w.id === itemId);
+            if (index > -1) works[index] = item;
+        } else {
+            works.unshift(item);
+        }
+        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+    }
+    
+    closeModal();
+    loadData();
+}
+
+function editItem(type, itemId) {
+    openModal(type, itemId);
+}
+
+function viewItem(type, itemId) {
+    const items = type === 'life' ? getLifeRecords() : getWorks();
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const typeName = type === 'life' ? '生活记录' : '作品';
+    let text = `${typeName}\n\n标题：${item.title}\n日期：${new Date(item.date).toLocaleDateString('zh-CN')}\n\n${item.content}`;
+    if (item.tags && item.tags.length) text += `\n标签：${item.tags.join(', ')}`;
+    if (item.fileName) text += `\n附件：${item.fileName}`;
+    alert(text);
+}
+
+function deleteItem(type, itemId) {
+    if (!confirm('确定要删除吗？')) return;
+    
+    if (type === 'life') {
+        const records = getLifeRecords().filter(r => r.id !== itemId);
+        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
+    } else {
+        const works = getWorks().filter(w => w.id !== itemId);
+        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+    }
+    loadData();
+}
+
+function shareToWeChat(itemId, type) {
+    const modal = document.getElementById('share-modal');
+    const url = window.location.href + '#' + type + '-' + itemId;
+    
+    document.getElementById('share-url').textContent = url;
+    modal.classList.add('show');
+}
+
+function closeShareModal(e) {
+    if (e && e.target !== document.getElementById('share-modal')) return;
+    document.getElementById('share-modal').classList.remove('show');
+}
+
+function copyShareLink() {
+    const url = document.getElementById('share-url').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+        alert('链接已复制，可以粘贴到微信了');
+    }).catch(() => {
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        alert('链接已复制');
+    });
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeModal();
+        closeThemeModal();
+        closeShareModal();
+        closeFriendModal();
+        closeResetModal();
+    }
+});
