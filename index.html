@@ -13,6 +13,13 @@
             <div class="auth-logo"><span class="logo-icon">◆</span></div>
             <h1 class="auth-title">欢迎来到我的空间</h1>
             <p class="auth-subtitle">记录生活 · 收藏作品</p>
+            
+            <!-- 账号列表 -->
+            <div id="account-list" class="account-list" style="display:none;">
+                <h3 style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">选择账号登录</h3>
+                <div id="accounts"></div>
+            </div>
+            
             <form id="auth-form" class="auth-form">
                 <div class="input-group">
                     <input type="text" id="username" placeholder=" " required maxlength="12">
@@ -177,6 +184,12 @@
                         <span class="info-label">注册时间</span>
                         <span id="settings-created"></span>
                     </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>切换账号</h3>
+                    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">退出当前账号，登录其他账号</p>
+                    <button class="btn-secondary" onclick="switchAccount()" style="width:100%;">切换账号</button>
                 </div>
             </div>
         </section>
