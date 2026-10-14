@@ -3,7 +3,8 @@ const StorageKeys = {
     USER: 'site_user',
     LIFE: 'site_life',
     WORKS: 'site_works',
-    THEME: 'site_theme'
+    THEME: 'site_theme',
+    AVATAR: 'site_avatar'
 };
 
 // 主题配置
@@ -17,32 +18,36 @@ const Themes = {
     'red': { name: '红色', color: '#f5222d' },
     'teal': { name: '青色', color: '#13c2c2' },
     
-    'cs1': { name: 'CS1', color: '#E70014' },
-    'cs2': { name: 'CS2', color: '#00B0EC' },
-    'cs3': { name: 'CS3', color: '#ABCD05' },
-    'cs4': { name: 'CS4', color: '#920783' },
-    'cs5': { name: 'CS5', color: '#FFE200' },
-    'cs6': { name: 'CS6', color: '#005BAC' },
+    'cs1': { name: '长沙1号线', color: '#E60012' },
+    'cs2': { name: '长沙2号线', color: '#00AFEC' },
+    'cs3': { name: '长沙3号线', color: '#ABCD03' },
+    'cs4': { name: '长沙4号线', color: '#920783' },
+    'cs5': { name: '长沙5号线', color: '#FFE200' },
+    'cs6': { name: '长沙6号线', color: '#005BAC' },
     
-    'gz1': { name: 'GZ1', color: '#edcf3b' },
-    'gz2': { name: 'GZ2', color: '#00679e' },
-    'gz3': { name: 'GZ3', color: '#e89e47' },
-    'gz4': { name: 'GZ4', color: '#01824a' },
-    'gz5': { name: 'GZ5', color: '#c70541' },
-    'gz6': { name: 'GZ1', color: '#6e0346' },
-    'gz7': { name: 'GZ7', color: '#9dd32d' },
-    'gz8': { name: 'GZ8', color: '#00858a' },
-    'gz10': { name: 'GZ10', color: '#6e90b6' },
-    'gz11': { name: 'GZ11', color: '#F5BB17' },
-    'gz12': { name: 'GZ12', color: '#59621d' },
-    'gz13': { name: 'GZ13', color: '#888600' },
-    'gz14': { name: 'GZ14', color: '#792720' },
+    'gz1': { name: '广州1号线', color: '#edcf3b' },
+    'gz2': { name: '广州2号线', color: '#00679e' },
+    'gz3': { name: '广州3号线', color: '#e89e47' },
+    'gz4': { name: '广州4号线', color: '#01824a' },
+    'gz5': { name: '广州5号线', color: '#c70541' },
+    'gz6': { name: '广州6号线', color: '#6e0346' },
+    'gz7': { name: '广州7号线', color: '#9dd32d' },
+    'gz8': { name: '广州8号线', color: '#00858a' },
+    'gz9': { name: '广州9号线', color: '#5ec998' },
+    'gz10': { name: '广州10号线', color: '#6e90b6' },
+    'gz11': { name: '广州11号线', color: '#F5BB17' },
+    'gz12': { name: '广州12号线', color: '#59621d' },
+    'gz13': { name: '广州13号线', color: '#888600' },
+    'gz14': { name: '广州14号线', color: '#792720' },
 };
+
+const DEFAULT_AVATAR = 'assets/default-avatar.png';
 
 let currentUser = null;
 let isLoginMode = false;
 let currentTheme = 'default';
 let tempImageData = null;
+let currentAvatar = DEFAULT_AVATAR;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -54,6 +59,7 @@ function checkAuth() {
     const savedUser = localStorage.getItem(StorageKeys.USER);
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
+        loadAvatar();
         showMainScreen();
     }
 }
@@ -74,6 +80,80 @@ function setupEventListeners() {
     });
 }
 
+// 头像管理
+function loadAvatar() {
+    const saved = localStorage.getItem(StorageKeys.AVATAR);
+    currentAvatar = saved || DEFAULT_AVATAR;
+    updateAvatarDisplay();
+}
+
+function updateAvatarDisplay() {
+    const settingsAvatar = document.getElementById('current-avatar');
+    if (settingsAvatar) settingsAvatar.src = currentAvatar;
+}
+
+function changeAvatar(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        currentAvatar = event.target.result;
+        localStorage.setItem(StorageKeys.AVATAR, currentAvatar);
+        updateAvatarDisplay();
+        loadFeed();
+        alert('头像已更新');
+    };
+    reader.readAsDataURL(file);
+}
+
+function resetAvatar() {
+    currentAvatar = DEFAULT_AVATAR;
+    localStorage.removeItem(StorageKeys.AVATAR);
+    updateAvatarDisplay();
+    loadFeed();
+    alert('已恢复默认头像');
+}
+
+// 修改密码
+function changePassword(e) {
+    e.preventDefault();
+    const oldPassword = document.getElementById('old-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-new-password').value;
+    const errorEl = document.getElementById('password-error');
+    const successEl = document.getElementById('password-success');
+    
+    errorEl.textContent = '';
+    successEl.textContent = '';
+    
+    if (hashPassword(oldPassword) !== currentUser.password) {
+        errorEl.textContent = '当前密码不正确';
+        return;
+    }
+    
+    if (newPassword.length < 4) {
+        errorEl.textContent = '新密码至少4位';
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        errorEl.textContent = '两次新密码不一致';
+        return;
+    }
+    
+    currentUser.password = hashPassword(newPassword);
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
+    
+    successEl.textContent = '密码修改成功';
+    document.getElementById('password-form').reset();
+    
+    setTimeout(() => {
+        successEl.textContent = '';
+    }, 3000);
+}
+
+// 主题管理
 function loadTheme() {
     const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
     currentTheme = saved;
@@ -114,6 +194,7 @@ function closeThemeModal(e) {
     document.getElementById('theme-modal').classList.remove('show');
 }
 
+// 切换登录/注册模式
 function toggleAuthMode() {
     isLoginMode = !isLoginMode;
     const confirmGroup = document.getElementById('confirm-group');
@@ -133,11 +214,12 @@ function toggleAuthMode() {
         authBtn.textContent = '创建账号';
         switchText.textContent = '已有账号？';
         switchBtn.textContent = '直接登录';
-        title.textContent = '欢迎来到Banli🌰的空间';
+        title.textContent = '欢迎来到我的空间';
     }
     document.getElementById('auth-error').textContent = '';
 }
 
+// 处理注册/登录
 function handleAuth(e) {
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
@@ -149,12 +231,13 @@ function handleAuth(e) {
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
-        if (password.length < 6) { errorEl.textContent = '密码至少6位'; return; }
+        if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
         if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
         
         const user = { username, password: hashPassword(password), createdAt: new Date().toISOString() };
         localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
         currentUser = user;
+        loadAvatar();
         showMainScreen();
     } else {
         const savedUser = localStorage.getItem(StorageKeys.USER);
@@ -163,6 +246,7 @@ function handleAuth(e) {
         if (user.username !== username) { errorEl.textContent = '名称不正确'; return; }
         if (user.password !== hashPassword(password)) { errorEl.textContent = '密码错误'; return; }
         currentUser = user;
+        loadAvatar();
         showMainScreen();
     }
 }
@@ -177,13 +261,19 @@ function hashPassword(password) {
     return hash.toString();
 }
 
+// 显示主界面
 function showMainScreen() {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('main-screen').style.display = 'flex';
     document.getElementById('nav-username').textContent = currentUser.username;
+    
+    document.getElementById('settings-username').textContent = currentUser.username;
+    document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
+    
     loadData();
 }
 
+// 退出登录
 function logout() {
     if (confirm('确定要退出吗？')) {
         currentUser = null;
@@ -193,6 +283,7 @@ function logout() {
     }
 }
 
+// 切换页面
 function switchPage(pageName) {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.toggle('active', link.dataset.page === pageName);
@@ -202,12 +293,14 @@ function switchPage(pageName) {
     });
 }
 
+// 加载数据
 function loadData() {
     loadFeed();
     loadLifeRecords();
     loadWorks();
 }
 
+// 加载朋友圈
 function loadFeed() {
     const allItems = [
         ...getLifeRecords().map(r => ({ ...r, type: 'life' })),
@@ -227,16 +320,21 @@ function loadFeed() {
     container.innerHTML = allItems.map(item => createFeedItem(item)).join('');
 }
 
+// 创建朋友圈条目
 function createFeedItem(item) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
     const typeName = item.type === 'life' ? '生活' : '作品';
     const imageHtml = item.image ? `<div class="feed-image"><img src="${item.image}" alt=""></div>` : '';
     const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
     
+    const avatarHtml = currentAvatar === DEFAULT_AVATAR 
+        ? `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`
+        : `<img src="${currentAvatar}" alt="avatar">`;
+    
     return `
         <div class="feed-item">
             <div class="feed-header">
-                <div class="feed-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                <div class="feed-avatar">${avatarHtml}</div>
                 <div class="feed-info">
                     <div class="feed-author">${escapeHtml(currentUser.username)}</div>
                     <div class="feed-time">${date}</div>
@@ -258,6 +356,7 @@ function createFeedItem(item) {
     `;
 }
 
+// 加载生活记录
 function loadLifeRecords() {
     const records = getLifeRecords();
     const container = document.getElementById('life-list');
@@ -273,6 +372,7 @@ function loadLifeRecords() {
     container.innerHTML = records.map(r => createCard(r, 'life')).join('');
 }
 
+// 加载作品
 function loadWorks() {
     const works = getWorks();
     const container = document.getElementById('works-list');
@@ -288,6 +388,7 @@ function loadWorks() {
     container.innerHTML = works.map(w => createCard(w, 'work')).join('');
 }
 
+// 创建卡片
 function createCard(item, type) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
     const imageHtml = item.image ? `<div class="card-image"><img src="${item.image}" alt=""></div>` : '';
@@ -309,6 +410,7 @@ function createCard(item, type) {
     `;
 }
 
+// 获取数据
 function getLifeRecords() {
     const data = localStorage.getItem(StorageKeys.LIFE);
     return data ? JSON.parse(data) : [];
@@ -319,6 +421,7 @@ function getWorks() {
     return data ? JSON.parse(data) : [];
 }
 
+// 图片预览
 function previewImage(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -331,6 +434,7 @@ function previewImage(e) {
     reader.readAsDataURL(file);
 }
 
+// 打开弹窗
 function openModal(type, itemId = null) {
     const modal = document.getElementById('modal');
     const form = document.getElementById('modal-form');
@@ -368,6 +472,7 @@ function closeModal(e) {
     document.getElementById('modal').classList.remove('show');
 }
 
+// 保存数据
 function saveItem(e) {
     e.preventDefault();
     
@@ -410,10 +515,12 @@ function saveItem(e) {
     loadData();
 }
 
+// 编辑项目
 function editItem(type, itemId) {
     openModal(type, itemId);
 }
 
+// 查看项目
 function viewItem(type, itemId) {
     const items = type === 'life' ? getLifeRecords() : getWorks();
     const item = items.find(i => i.id === itemId);
@@ -425,6 +532,7 @@ function viewItem(type, itemId) {
     alert(text);
 }
 
+// 删除项目
 function deleteItem(type, itemId) {
     if (!confirm('确定要删除吗？')) return;
     
@@ -438,27 +546,12 @@ function deleteItem(type, itemId) {
     loadData();
 }
 
+// 分享到微信
 function shareToWeChat(itemId, type) {
     const modal = document.getElementById('share-modal');
     const url = window.location.href + '#' + type + '-' + itemId;
     
     document.getElementById('share-url').textContent = url;
-    
-    const qrcodeEl = document.getElementById('qrcode');
-    qrcodeEl.innerHTML = '';
-    
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(qrcodeEl, {
-            text: url,
-            width: 200,
-            height: 200,
-            colorDark: '#000000',
-            colorLight: '#ffffff'
-        });
-    } else {
-        qrcodeEl.innerHTML = '<p style="color:#999">二维码加载失败</p>';
-    }
-    
     modal.classList.add('show');
 }
 
@@ -470,7 +563,7 @@ function closeShareModal(e) {
 function copyShareLink() {
     const url = document.getElementById('share-url').textContent;
     navigator.clipboard.writeText(url).then(() => {
-        alert('链接已复制');
+        alert('链接已复制，可以粘贴到微信了');
     }).catch(() => {
         const input = document.createElement('input');
         input.value = url;
@@ -482,6 +575,7 @@ function copyShareLink() {
     });
 }
 
+// 工具函数
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
@@ -492,6 +586,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ESC键关闭弹窗
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeModal();
