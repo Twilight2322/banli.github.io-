@@ -308,7 +308,7 @@
             <form id="reset-form" onsubmit="resetPassword(event)">
                 <div class="form-group">
                     <label>选择要重置的账号</label>
-                    <select id="reset-account" required style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:14px;">
+                    <select id="reset-account" style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:14px;">
                         <option value="">请选择账号</option>
                     </select>
                 </div>
@@ -318,16 +318,17 @@
                 </div>
                 <div class="form-group">
                     <label>新密码</label>
-                    <input type="password" id="reset-new-password" required minlength="4">
+                    <input type="password" id="reset-new-password" minlength="4">
                 </div>
                 <div class="form-group">
                     <label>确认新密码</label>
-                    <input type="password" id="reset-confirm-password" required>
+                    <input type="password" id="reset-confirm-password">
                 </div>
                 <p id="reset-error" class="auth-error"></p>
                 <p id="reset-success" class="success-message"></p>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeResetModal()">取消</button>
+                    <button type="button" class="btn-secondary" onclick="resetAllData()">重置所有数据</button>
                     <button type="submit" class="btn-primary">重置密码</button>
                 </div>
             </form>
