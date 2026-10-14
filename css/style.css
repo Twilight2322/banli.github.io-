@@ -392,6 +392,7 @@ body {
     display: flex; align-items: center; gap: 10px; padding: 10px;
     background: var(--bg-input); border-radius: 8px; margin-top: 10px;
     text-decoration: none; color: var(--text-primary);
+    cursor: pointer;
 }
 .feed-file:hover { background: var(--border); }
 .feed-file-icon { font-size: 24px; }
