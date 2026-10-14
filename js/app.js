@@ -856,4 +856,4 @@ function handleAuth(e) {
         const user = users[username];
         
         if (!user) {
-            errorEl.textContent =
+            errorEl
