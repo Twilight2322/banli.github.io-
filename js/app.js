@@ -1,15 +1,15 @@
 // 数据管理
 const StorageKeys = {
-    USER: 'site_user',
+    CURRENT_USER: 'site_current_user',
+    USERS: 'site_users',
+    USER_COUNT: 'site_user_count',
     LIFE: 'site_life',
     WORKS: 'site_works',
     THEME: 'site_theme',
-    AVATAR: 'site_avatar',
-    USER_COUNT: 'site_user_count',
     DARK_MODE: 'site_dark_mode',
     FRIENDS: 'site_friends',
     FRIEND_REQUESTS: 'site_friend_requests',
-    USERS: 'site_users'
+    AVATARS: 'site_avatars'
 };
 
 // 主题配置
@@ -22,14 +22,12 @@ const Themes = {
     'orange': { name: '橙色', color: '#fa8c16' },
     'red': { name: '红色', color: '#f5222d' },
     'teal': { name: '青色', color: '#13c2c2' },
-    
     'cs1': { name: '长沙1号线', color: '#E60012' },
     'cs2': { name: '长沙2号线', color: '#00AFEC' },
     'cs3': { name: '长沙3号线', color: '#ABCD03' },
     'cs4': { name: '长沙4号线', color: '#920783' },
     'cs5': { name: '长沙5号线', color: '#FFE200' },
     'cs6': { name: '长沙6号线', color: '#005BAC' },
-    
     'gz1': { name: '广州1号线', color: '#edcf3b' },
     'gz2': { name: '广州2号线', color: '#00679e' },
     'gz3': { name: '广州3号线', color: '#e89e47' },
@@ -46,7 +44,6 @@ const Themes = {
     'gz14': { name: '广州14号线', color: '#792720' },
 };
 
-// Emoji 列表
 const Emojis = [
     '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😜', '🤪', '🤔',
     '😎', '🥳', '😢', '😭', '😤', '😡', '🥺', '😴', '🤯', '🥶',
@@ -62,7 +59,6 @@ const Emojis = [
     '🌊', '🏖️', '🏝️', '🏔️', '⛰️', '🌋', '🏜️', '🏞️', '🌅', '🌄'
 ];
 
-const DEFAULT_AVATAR = '';
 const MAX_USERNAME_LENGTH = 12;
 const ADMIN_CODE = 'wknwknwkn';
 
@@ -73,7 +69,6 @@ let tempImageData = null;
 let tempFileName = null;
 let tempFileType = null;
 let tempFileSize = null;
-let currentAvatar = DEFAULT_AVATAR;
 let isDarkMode = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -84,6 +79,23 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmojiPicker();
 });
 
+// 用户管理
+function getAllUsers() {
+    const data = localStorage.getItem(StorageKeys.USERS);
+    return data ? JSON.parse(data) : {};
+}
+
+function saveUser(userId, userData) {
+    const users = getAllUsers();
+    users[userId] = userData;
+    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
+}
+
+function getUser(userId) {
+    const users = getAllUsers();
+    return users[userId];
+}
+
 function generateUserId() {
     let count = parseInt(localStorage.getItem(StorageKeys.USER_COUNT) || '0');
     count++;
@@ -91,12 +103,90 @@ function generateUserId() {
     return 'NYS-Kn' + count.toString().padStart(3, '0');
 }
 
+function getCurrentUser() {
+    const userId = localStorage.getItem(StorageKeys.CURRENT_USER);
+    if (userId) {
+        return getUser(userId);
+    }
+    return null;
+}
+
+function setCurrentUser(userId) {
+    if (userId) {
+        localStorage.setItem(StorageKeys.CURRENT_USER, userId);
+    } else {
+        localStorage.removeItem(StorageKeys.CURRENT_USER);
+    }
+}
+
+// 头像管理
+function getAvatar(userId) {
+    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
+    return avatars[userId] || '';
+}
+
+function saveAvatar(userId, avatarData) {
+    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
+    avatars[userId] = avatarData;
+    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
+}
+
+function removeAvatar(userId) {
+    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
+    delete avatars[userId];
+    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
+}
+
 function checkAuth() {
-    const savedUser = localStorage.getItem(StorageKeys.USER);
-    if (savedUser) {
-        currentUser = JSON.parse(savedUser);
-        loadAvatar();
+    currentUser = getCurrentUser();
+    if (currentUser) {
         showMainScreen();
+    } else {
+        showAuthScreen();
+        loadAccountList();
+    }
+}
+
+function loadAccountList() {
+    const users = getAllUsers();
+    const userIds = Object.keys(users);
+    const accountList = document.getElementById('account-list');
+    const accountsDiv = document.getElementById('accounts');
+    
+    if (userIds.length > 0) {
+        accountList.style.display = 'block';
+        accountsDiv.innerHTML = userIds.map(userId => {
+            const user = users[userId];
+            const avatar = getAvatar(userId);
+            const avatarHtml = avatar 
+                ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                : user.username.charAt(0).toUpperCase();
+            return `
+                <div class="account-item" onclick="loginWithAccount('${userId}')">
+                    <div class="account-avatar">${avatarHtml}</div>
+                    <div class="account-info">
+                        <div class="account-name">${escapeHtml(user.username)}</div>
+                        <div class="account-id">${userId}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        accountList.style.display = 'none';
+    }
+}
+
+function loginWithAccount(userId) {
+    const user = getUser(userId);
+    if (!user) return;
+    
+    // 显示密码输入
+    document.getElementById('username').value = user.username;
+    document.getElementById('password').focus();
+    
+    // 切换到登录模式
+    if (!isLoginMode) {
+        toggleAuthMode();
     }
 }
 
@@ -152,17 +242,14 @@ function insertEmoji(emoji) {
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
 }
 
-function loadAvatar() {
-    const saved = localStorage.getItem(StorageKeys.AVATAR);
-    currentAvatar = saved || DEFAULT_AVATAR;
-    updateAvatarDisplay();
-}
-
 function updateAvatarDisplay() {
+    if (!currentUser) return;
+    
+    const avatar = getAvatar(currentUser.userId);
     const navAvatar = document.getElementById('nav-avatar');
     if (navAvatar) {
-        if (currentAvatar) {
-            navAvatar.innerHTML = `<img src="${currentAvatar}" alt="avatar">`;
+        if (avatar) {
+            navAvatar.innerHTML = `<img src="${avatar}" alt="avatar">`;
         } else {
             navAvatar.innerHTML = `<div class="nav-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
         }
@@ -170,8 +257,8 @@ function updateAvatarDisplay() {
     
     const settingsAvatar = document.getElementById('current-avatar');
     if (settingsAvatar) {
-        if (currentAvatar) {
-            settingsAvatar.src = currentAvatar;
+        if (avatar) {
+            settingsAvatar.src = avatar;
             settingsAvatar.style.display = 'block';
         } else {
             settingsAvatar.style.display = 'none';
@@ -181,12 +268,11 @@ function updateAvatarDisplay() {
 
 function changeAvatar(e) {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
-        currentAvatar = event.target.result;
-        localStorage.setItem(StorageKeys.AVATAR, currentAvatar);
+        saveAvatar(currentUser.userId, event.target.result);
         updateAvatarDisplay();
         loadFeed();
         alert('头像已更新');
@@ -195,8 +281,8 @@ function changeAvatar(e) {
 }
 
 function resetAvatar() {
-    currentAvatar = DEFAULT_AVATAR;
-    localStorage.removeItem(StorageKeys.AVATAR);
+    if (!currentUser) return;
+    removeAvatar(currentUser.userId);
     updateAvatarDisplay();
     loadFeed();
     alert('已恢复默认头像');
@@ -204,6 +290,8 @@ function resetAvatar() {
 
 function changeUsername(e) {
     e.preventDefault();
+    if (!currentUser) return;
+    
     const newUsername = document.getElementById('new-username').value.trim();
     const errorEl = document.getElementById('username-error');
     const successEl = document.getElementById('username-success');
@@ -222,7 +310,7 @@ function changeUsername(e) {
     }
     
     currentUser.username = newUsername;
-    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
+    saveUser(currentUser.userId, currentUser);
     
     document.getElementById('nav-username').textContent = newUsername;
     document.getElementById('settings-username').textContent = newUsername;
@@ -239,6 +327,8 @@ function changeUsername(e) {
 
 function changePassword(e) {
     e.preventDefault();
+    if (!currentUser) return;
+    
     const oldPassword = document.getElementById('old-password').value;
     const newPassword = document.getElementById('new-password').value;
     const confirmPassword = document.getElementById('confirm-new-password').value;
@@ -264,7 +354,7 @@ function changePassword(e) {
     }
     
     currentUser.password = hashPassword(newPassword);
-    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
+    saveUser(currentUser.userId, currentUser);
     
     successEl.textContent = '密码修改成功';
     document.getElementById('password-form').reset();
@@ -274,7 +364,6 @@ function changePassword(e) {
     }, 3000);
 }
 
-// 重置密码
 function openResetModal() {
     document.getElementById('reset-modal').classList.add('show');
     document.getElementById('reset-error').textContent = '';
@@ -313,15 +402,18 @@ function resetPassword(e) {
         return;
     }
     
-    const savedUser = localStorage.getItem(StorageKeys.USER);
-    if (!savedUser) {
+    // 重置所有账号的密码
+    const users = getAllUsers();
+    const userIds = Object.keys(users);
+    if (userIds.length === 0) {
         errorEl.textContent = '没有可重置的账号';
         return;
     }
     
-    const user = JSON.parse(savedUser);
-    user.password = hashPassword(newPassword);
-    localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
+    // 重置第一个账号（或可以扩展选择特定账号）
+    const firstUserId = userIds[0];
+    users[firstUserId].password = hashPassword(newPassword);
+    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
     
     successEl.textContent = '密码重置成功，请使用新密码登录';
     
@@ -334,20 +426,9 @@ function resetPassword(e) {
 }
 
 // 好友系统
-function getAllUsers() {
-    const data = localStorage.getItem(StorageKeys.USERS);
-    return data ? JSON.parse(data) : {};
-}
-
-function saveUser(userId, userData) {
-    const users = getAllUsers();
-    users[userId] = userData;
-    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
-}
-
 function getFriends() {
     const data = localStorage.getItem(StorageKeys.FRIENDS);
-    return data ? JSON.parse(data) : [];
+    return data ? JSON.parse(data) : {};
 }
 
 function saveFriends(friends) {
@@ -376,6 +457,8 @@ function closeFriendModal(e) {
 
 function sendFriendRequest(e) {
     e.preventDefault();
+    if (!currentUser) return;
+    
     const friendId = document.getElementById('friend-id').value.trim();
     const message = document.getElementById('friend-message').value.trim();
     const errorEl = document.getElementById('friend-error');
@@ -396,7 +479,8 @@ function sendFriendRequest(e) {
     }
     
     const friends = getFriends();
-    if (friends.includes(friendId)) {
+    const myFriends = friends[currentUser.userId] || [];
+    if (myFriends.includes(friendId)) {
         errorEl.textContent = '已经是好友了';
         return;
     }
@@ -429,16 +513,34 @@ function sendFriendRequest(e) {
 }
 
 function acceptFriendRequest(requestId) {
+    if (!currentUser) return;
+    
     const requests = getFriendRequests();
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
     
+    // 添加好友关系（双向）
     const friends = getFriends();
-    if (!friends.includes(request.from)) {
-        friends.push(request.from);
-        saveFriends(friends);
+    
+    // 添加到当前用户的好友列表
+    if (!friends[currentUser.userId]) {
+        friends[currentUser.userId] = [];
+    }
+    if (!friends[currentUser.userId].includes(request.from)) {
+        friends[currentUser.userId].push(request.from);
     }
     
+    // 添加到对方的好友列表
+    if (!friends[request.from]) {
+        friends[request.from] = [];
+    }
+    if (!friends[request.from].includes(currentUser.userId)) {
+        friends[request.from].push(currentUser.userId);
+    }
+    
+    saveFriends(friends);
+    
+    // 删除请求
     const newRequests = requests.filter(r => r.id !== requestId);
     saveFriendRequests(newRequests);
     
@@ -454,61 +556,84 @@ function rejectFriendRequest(requestId) {
 }
 
 function removeFriend(friendId) {
+    if (!currentUser) return;
     if (!confirm('确定要删除这个好友吗？')) return;
     
-    const friends = getFriends().filter(id => id !== friendId);
+    const friends = getFriends();
+    
+    // 从当前用户的好友列表删除
+    if (friends[currentUser.userId]) {
+        friends[currentUser.userId] = friends[currentUser.userId].filter(id => id !== friendId);
+    }
+    
+    // 从对方的好友列表删除
+    if (friends[friendId]) {
+        friends[friendId] = friends[friendId].filter(id => id !== currentUser.userId);
+    }
+    
     saveFriends(friends);
     loadFriends();
 }
 
 function loadFriends() {
+    if (!currentUser) return;
+    
     const friends = getFriends();
     const requests = getFriendRequests();
     const users = getAllUsers();
     
+    // 显示好友请求
     const requestsSection = document.getElementById('friend-requests-section');
     const requestsList = document.getElementById('friend-requests-list');
     const myRequests = requests.filter(r => r.to === currentUser.userId);
     
     if (myRequests.length > 0) {
         requestsSection.style.display = 'block';
-        requestsList.innerHTML = myRequests.map(r => `
-            <div class="friend-request-item">
-                <div class="friend-avatar">
-                    <div class="friend-avatar-text">${r.fromUsername.charAt(0).toUpperCase()}</div>
+        requestsList.innerHTML = myRequests.map(r => {
+            const avatar = getAvatar(r.from);
+            const avatarHtml = avatar 
+                ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                : r.fromUsername.charAt(0).toUpperCase();
+            return `
+                <div class="friend-request-item">
+                    <div class="friend-avatar">${avatarHtml}</div>
+                    <div class="friend-info">
+                        <div class="friend-name">${escapeHtml(r.fromUsername)}</div>
+                        <div class="friend-id">${r.from}</div>
+                        <div class="friend-request-message">${escapeHtml(r.message)}</div>
+                    </div>
+                    <div class="friend-actions">
+                        <button class="friend-btn accept" onclick="acceptFriendRequest('${r.id}')">接受</button>
+                        <button class="friend-btn reject" onclick="rejectFriendRequest('${r.id}')">拒绝</button>
+                    </div>
                 </div>
-                <div class="friend-info">
-                    <div class="friend-name">${escapeHtml(r.fromUsername)}</div>
-                    <div class="friend-id">${r.from}</div>
-                    <div class="friend-request-message">${escapeHtml(r.message)}</div>
-                </div>
-                <div class="friend-actions">
-                    <button class="friend-btn accept" onclick="acceptFriendRequest('${r.id}')">接受</button>
-                    <button class="friend-btn reject" onclick="rejectFriendRequest('${r.id}')">拒绝</button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } else {
         requestsSection.style.display = 'none';
     }
     
+    // 显示好友列表
     const friendsList = document.getElementById('friends-list');
     const friendsEmpty = document.getElementById('friends-empty');
+    const myFriends = friends[currentUser.userId] || [];
     
-    if (friends.length === 0) {
+    if (myFriends.length === 0) {
         friendsList.innerHTML = '';
         friendsEmpty.style.display = 'block';
         return;
     }
     
     friendsEmpty.style.display = 'none';
-    friendsList.innerHTML = friends.map(friendId => {
+    friendsList.innerHTML = myFriends.map(friendId => {
         const user = users[friendId] || { username: '未知用户' };
+        const avatar = getAvatar(friendId);
+        const avatarHtml = avatar 
+            ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+            : user.username.charAt(0).toUpperCase();
         return `
             <div class="friend-item">
-                <div class="friend-avatar">
-                    <div class="friend-avatar-text">${user.username.charAt(0).toUpperCase()}</div>
-                </div>
+                <div class="friend-avatar">${avatarHtml}</div>
                 <div class="friend-info">
                     <div class="friend-name">${escapeHtml(user.username)}</div>
                     <div class="friend-id">${friendId}</div>
@@ -597,6 +722,7 @@ function handleAuth(e) {
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
+        // 注册新账号
         if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
         if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
         
@@ -607,20 +733,32 @@ function handleAuth(e) {
             password: hashPassword(password), 
             createdAt: new Date().toISOString() 
         };
-        localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
-        saveUser(userId, { username, createdAt: user.createdAt });
         
+        saveUser(userId, user);
+        setCurrentUser(userId);
         currentUser = user;
-        loadAvatar();
+        
         showMainScreen();
     } else {
-        const savedUser = localStorage.getItem(StorageKeys.USER);
-        if (!savedUser) { errorEl.textContent = '账号不存在'; return; }
-        const user = JSON.parse(savedUser);
-        if (user.username !== username) { errorEl.textContent = '名称不正确'; return; }
-        if (user.password !== hashPassword(password)) { errorEl.textContent = '密码错误'; return; }
+        // 登录现有账号
+        const users = getAllUsers();
+        const userIds = Object.keys(users);
+        
+        // 查找匹配的用户名
+        const matchedUserId = userIds.find(id => users[id].username === username);
+        if (!matchedUserId) {
+            errorEl.textContent = '账号不存在';
+            return;
+        }
+        
+        const user = users[matchedUserId];
+        if (user.password !== hashPassword(password)) {
+            errorEl.textContent = '密码错误';
+            return;
+        }
+        
+        setCurrentUser(matchedUserId);
         currentUser = user;
-        loadAvatar();
         showMainScreen();
     }
 }
@@ -640,10 +778,10 @@ function showMainScreen() {
     document.getElementById('main-screen').style.display = 'flex';
     
     document.getElementById('nav-username').textContent = currentUser.username;
-    document.getElementById('nav-userid').textContent = currentUser.userId || 'NYS-Kn000';
+    document.getElementById('nav-userid').textContent = currentUser.userId;
     
     document.getElementById('settings-username').textContent = currentUser.username;
-    document.getElementById('settings-userid').textContent = currentUser.userId || 'NYS-Kn000';
+    document.getElementById('settings-userid').textContent = currentUser.userId;
     document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
     
     updateAvatarDisplay();
@@ -651,12 +789,30 @@ function showMainScreen() {
     loadFriends();
 }
 
+function showAuthScreen() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('main-screen').style.display = 'none';
+    loadAccountList();
+}
+
 function logout() {
     if (confirm('确定要退出吗？')) {
+        setCurrentUser(null);
         currentUser = null;
-        document.getElementById('auth-screen').style.display = 'flex';
-        document.getElementById('main-screen').style.display = 'none';
+        showAuthScreen();
         document.getElementById('auth-form').reset();
+    }
+}
+
+function switchAccount() {
+    if (confirm('确定要切换账号吗？')) {
+        setCurrentUser(null);
+        currentUser = null;
+        showAuthScreen();
+        document.getElementById('auth-form').reset();
+        if (!isLoginMode) {
+            toggleAuthMode();
+        }
     }
 }
 
@@ -680,6 +836,8 @@ function loadData() {
 }
 
 function loadFeed() {
+    if (!currentUser) return;
+    
     const allItems = [
         ...getLifeRecords().map(r => ({ ...r, type: 'life' })),
         ...getWorks().map(w => ({ ...w, type: 'work' }))
@@ -703,8 +861,9 @@ function createFeedItem(item) {
     const typeName = item.type === 'life' ? '生活' : '作品';
     const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
     
-    const avatarHtml = currentAvatar 
-        ? `<img src="${currentAvatar}" alt="avatar">`
+    const avatar = getAvatar(currentUser.userId);
+    const avatarHtml = avatar 
+        ? `<img src="${avatar}" alt="avatar">`
         : `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
     
     let fileHtml = '';
@@ -713,349 +872,4 @@ function createFeedItem(item) {
             fileHtml = `<div class="feed-image"><img src="${item.image}" alt=""></div>`;
         } else {
             const icon = getFileIcon(item.fileName || '');
-            fileHtml = `<a href="${item.image}" download="${item.fileName || 'file'}" class="feed-file">
-                <span class="feed-file-icon">${icon}</span>
-                <span class="feed-file-name">${escapeHtml(item.fileName || '附件')} (${item.fileSize || ''})</span>
-            </a>`;
-        }
-    }
-    
-    return `
-        <div class="feed-item">
-            <div class="feed-header">
-                <div class="feed-avatar">${avatarHtml}</div>
-                <div class="feed-info">
-                    <div class="feed-author">${escapeHtml(currentUser.username)}</div>
-                    <div class="feed-user-id">${currentUser.userId || ''}</div>
-                    <div class="feed-time">${date}</div>
-                </div>
-                <span class="feed-type ${item.type}">${typeName}</span>
-            </div>
-            <div class="feed-content">
-                <div class="feed-title">${escapeHtml(item.title)}</div>
-                <div class="feed-text">${escapeHtml(item.content)}</div>
-                ${fileHtml}
-                ${tags ? `<div class="feed-tags">${tags}</div>` : ''}
-            </div>
-            <div class="feed-actions">
-                <button class="feed-action" onclick="shareToWeChat('${item.id}', '${item.type}')">📤 分享到微信</button>
-                <button class="feed-action" onclick="editItem('${item.type}', '${item.id}')">✏️ 编辑</button>
-                <button class="feed-action delete" onclick="deleteItem('${item.type}', '${item.id}')">🗑️ 删除</button>
-            </div>
-        </div>
-    `;
-}
-
-function loadLifeRecords() {
-    const records = getLifeRecords();
-    const container = document.getElementById('life-list');
-    const emptyState = document.getElementById('life-empty');
-    
-    if (records.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    container.innerHTML = records.map(r => createCard(r, 'life')).join('');
-}
-
-function loadWorks() {
-    const works = getWorks();
-    const container = document.getElementById('works-list');
-    const emptyState = document.getElementById('works-empty');
-    
-    if (works.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    container.innerHTML = works.map(w => createCard(w, 'work')).join('');
-}
-
-function createCard(item, type) {
-    const date = new Date(item.date).toLocaleDateString('zh-CN');
-    const tags = item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : '';
-    
-    let fileHtml = '';
-    if (item.image) {
-        if (item.fileType && item.fileType.startsWith('image/')) {
-            fileHtml = `<div class="card-image"><img src="${item.image}" alt=""></div>`;
-        } else {
-            fileHtml = `<div class="card-tags"><span class="tag">📎 ${escapeHtml(item.fileName || '附件')}</span></div>`;
-        }
-    }
-    
-    return `
-        <div class="card" onclick="viewItem('${type}', '${item.id}')">
-            <div class="card-date">${date}</div>
-            <div class="card-title">${escapeHtml(item.title)}</div>
-            <div class="card-content">${escapeHtml(item.content)}</div>
-            ${fileHtml}
-            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
-            <div class="card-actions" onclick="event.stopPropagation()">
-                <button onclick="shareToWeChat('${item.id}', '${type}')">分享</button>
-                <button onclick="editItem('${type}', '${item.id}')">编辑</button>
-                <button class="delete-btn" onclick="deleteItem('${type}', '${item.id}')">删除</button>
-            </div>
-        </div>
-    `;
-}
-
-function getLifeRecords() {
-    const data = localStorage.getItem(StorageKeys.LIFE);
-    return data ? JSON.parse(data) : [];
-}
-
-function getWorks() {
-    const data = localStorage.getItem(StorageKeys.WORKS);
-    return data ? JSON.parse(data) : [];
-}
-
-function previewFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        tempImageData = event.target.result;
-        tempFileName = file.name;
-        tempFileType = file.type;
-        tempFileSize = formatFileSize(file.size);
-        
-        const preview = document.getElementById('image-preview');
-        
-        if (file.type.startsWith('image/')) {
-            preview.innerHTML = `<img src="${tempImageData}" alt="预览">`;
-        } else {
-            const icon = getFileIcon(file.name);
-            preview.innerHTML = `
-                <div class="file-preview">
-                    <span class="file-icon">${icon}</span>
-                    <div class="file-info">
-                        <div class="file-name">${escapeHtml(file.name)}</div>
-                        <div class="file-size">${formatFileSize(file.size)}</div>
-                    </div>
-                    <button type="button" class="file-remove" onclick="removeFile()">×</button>
-                </div>
-            `;
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
-function removeFile() {
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('item-image').value = '';
-    document.getElementById('image-preview').innerHTML = '';
-}
-
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const icons = {
-        'pdf': '📄',
-        'doc': '📝', 'docx': '📝',
-        'ppt': '📊', 'pptx': '📊',
-        'xls': '📈', 'xlsx': '📈',
-        'json': '📋',
-        'txt': '📃',
-        'zip': '📦', 'rar': '📦',
-        'mp3': '🎵', 'wav': '🎵',
-        'mp4': '🎬', 'avi': '🎬',
-    };
-    return icons[ext] || '📎';
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function openModal(type, itemId = null) {
-    const modal = document.getElementById('modal');
-    const form = document.getElementById('modal-form');
-    const title = document.getElementById('modal-title');
-    
-    form.reset();
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('image-preview').innerHTML = '';
-    document.getElementById('item-type').value = type;
-    document.getElementById('item-id').value = itemId || '';
-    
-    title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
-    document.getElementById('item-date').valueAsDate = new Date();
-    
-    if (itemId) {
-        const items = type === 'life' ? getLifeRecords() : getWorks();
-        const item = items.find(i => i.id === itemId);
-        if (item) {
-            document.getElementById('item-title').value = item.title;
-            document.getElementById('item-content').value = item.content;
-            document.getElementById('item-date').value = item.date;
-            document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
-            if (item.image) {
-                tempImageData = item.image;
-                tempFileName = item.fileName;
-                tempFileType = item.fileType;
-                tempFileSize = item.fileSize;
-                
-                const preview = document.getElementById('image-preview');
-                if (item.fileType && item.fileType.startsWith('image/')) {
-                    preview.innerHTML = `<img src="${item.image}" alt="预览">`;
-                } else {
-                    const icon = getFileIcon(item.fileName || '');
-                    preview.innerHTML = `
-                        <div class="file-preview">
-                            <span class="file-icon">${icon}</span>
-                            <div class="file-info">
-                                <div class="file-name">${escapeHtml(item.fileName || '附件')}</div>
-                                <div class="file-size">${item.fileSize || ''}</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-        }
-    }
-    
-    modal.classList.add('show');
-}
-
-function closeModal(e) {
-    if (e && e.target !== document.getElementById('modal')) return;
-    document.getElementById('modal').classList.remove('show');
-}
-
-function saveItem(e) {
-    e.preventDefault();
-    
-    const type = document.getElementById('item-type').value;
-    const itemId = document.getElementById('item-id').value;
-    const title = document.getElementById('item-title').value.trim();
-    const content = document.getElementById('item-content').value.trim();
-    const date = document.getElementById('item-date').value;
-    const tagsInput = document.getElementById('item-tags').value.trim();
-    const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
-    
-    const item = {
-        id: itemId || generateId(),
-        title, content, date, tags,
-        image: tempImageData,
-        fileName: tempFileName,
-        fileType: tempFileType,
-        fileSize: tempFileSize,
-        updatedAt: new Date().toISOString()
-    };
-    
-    if (type === 'life') {
-        const records = getLifeRecords();
-        if (itemId) {
-            const index = records.findIndex(r => r.id === itemId);
-            if (index > -1) records[index] = item;
-        } else {
-            records.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks();
-        if (itemId) {
-            const index = works.findIndex(w => w.id === itemId);
-            if (index > -1) works[index] = item;
-        } else {
-            works.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    
-    closeModal();
-    loadData();
-}
-
-function editItem(type, itemId) {
-    openModal(type, itemId);
-}
-
-function viewItem(type, itemId) {
-    const items = type === 'life' ? getLifeRecords() : getWorks();
-    const item = items.find(i => i.id === itemId);
-    if (!item) return;
-    
-    const typeName = type === 'life' ? '生活记录' : '作品';
-    let text = `${typeName}\n\n标题：${item.title}\n日期：${new Date(item.date).toLocaleDateString('zh-CN')}\n\n${item.content}`;
-    if (item.tags && item.tags.length) text += `\n标签：${item.tags.join(', ')}`;
-    if (item.fileName) text += `\n附件：${item.fileName}`;
-    alert(text);
-}
-
-function deleteItem(type, itemId) {
-    if (!confirm('确定要删除吗？')) return;
-    
-    if (type === 'life') {
-        const records = getLifeRecords().filter(r => r.id !== itemId);
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks().filter(w => w.id !== itemId);
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    loadData();
-}
-
-function shareToWeChat(itemId, type) {
-    const modal = document.getElementById('share-modal');
-    const url = window.location.href + '#' + type + '-' + itemId;
-    
-    document.getElementById('share-url').textContent = url;
-    modal.classList.add('show');
-}
-
-function closeShareModal(e) {
-    if (e && e.target !== document.getElementById('share-modal')) return;
-    document.getElementById('share-modal').classList.remove('show');
-}
-
-function copyShareLink() {
-    const url = document.getElementById('share-url').textContent;
-    navigator.clipboard.writeText(url).then(() => {
-        alert('链接已复制，可以粘贴到微信了');
-    }).catch(() => {
-        const input = document.createElement('input');
-        input.value = url;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-        alert('链接已复制');
-    });
-}
-
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        closeModal();
-        closeThemeModal();
-        closeShareModal();
-        closeFriendModal();
-        closeResetModal();
-    }
-});
+            fileHtml = `<a href
