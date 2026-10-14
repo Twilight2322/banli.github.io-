@@ -1,10 +1,53 @@
-const StorageKeys = { USER: 'site_user', LIFE: 'site_life', WORKS: 'site_works' };
+// 数据管理
+const StorageKeys = {
+    USER: 'site_user',
+    LIFE: 'site_life',
+    WORKS: 'site_works',
+    THEME: 'site_theme'
+};
+
+// 主题配置
+const Themes = {
+    'default': { name: '默认', color: '#1a1a1a' },
+    'black': { name: '纯黑', color: '#000000' },
+    'blue': { name: '蓝色', color: '#0066cc' },
+    'green': { name: '绿色', color: '#00a854' },
+    'purple': { name: '紫色', color: '#722ed1' },
+    'orange': { name: '橙色', color: '#fa8c16' },
+    'red': { name: '红色', color: '#f5222d' },
+    'teal': { name: '青色', color: '#13c2c2' },
+    
+    'cs1': { name: 'CS1', color: '#E70014' },
+    'cs2': { name: 'CS2', color: '#00B0EC' },
+    'cs3': { name: 'CS3', color: '#ABCD05' },
+    'cs4': { name: 'CS4', color: '#920783' },
+    'cs5': { name: 'CS5', color: '#FFE200' },
+    'cs6': { name: 'CS6', color: '#005BAC' },
+    
+    'gz1': { name: 'GZ1', color: '#edcf3b' },
+    'gz2': { name: 'GZ2', color: '#00679e' },
+    'gz3': { name: 'GZ3', color: '#e89e47' },
+    'gz4': { name: 'GZ4', color: '#01824a' },
+    'gz5': { name: 'GZ5', color: '#c70541' },
+    'gz6': { name: 'GZ1', color: '#6e0346' },
+    'gz7': { name: 'GZ7', color: '#9dd32d' },
+    'gz8': { name: 'GZ8', color: '#00858a' },
+    'gz10': { name: 'GZ10', color: '#6e90b6' },
+    'gz11': { name: 'GZ11', color: '#F5BB17' },
+    'gz12': { name: 'GZ12', color: '#59621d' },
+    'gz13': { name: 'GZ13', color: '#888600' },
+    'gz14': { name: 'GZ14', color: '#792720' },
+};
+
 let currentUser = null;
 let isLoginMode = false;
+let currentTheme = 'default';
+let tempImageData = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     setupEventListeners();
+    loadTheme();
 });
 
 function checkAuth() {
@@ -22,12 +65,53 @@ function setupEventListeners() {
         toggleAuthMode();
     });
     document.getElementById('logout-btn').addEventListener('click', logout);
+    document.getElementById('theme-btn').addEventListener('click', openThemeModal);
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             switchPage(link.dataset.page);
         });
     });
+}
+
+function loadTheme() {
+    const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
+    currentTheme = saved;
+    applyTheme(saved);
+}
+
+function applyTheme(themeKey) {
+    const theme = Themes[themeKey] || Themes.default;
+    document.documentElement.style.setProperty('--accent', theme.color);
+    currentTheme = themeKey;
+    localStorage.setItem(StorageKeys.THEME, themeKey);
+}
+
+function openThemeModal() {
+    const modal = document.getElementById('theme-modal');
+    renderThemeGrid('basic-themes', ['default', 'black', 'blue', 'green', 'purple', 'orange', 'red', 'teal']);
+    renderThemeGrid('changsha-themes', ['cs1', 'cs2', 'cs3', 'cs4', 'cs5', 'cs6']);
+    renderThemeGrid('guangzhou-themes', ['gz1', 'gz2', 'gz3', 'gz4', 'gz5', 'gz6', 'gz7', 'gz8', 'gz9', 'gz10', 'gz11', 'gz12', 'gz13', 'gz14']);
+    modal.classList.add('show');
+}
+
+function renderThemeGrid(containerId, themeKeys) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = themeKeys.map(key => {
+        const theme = Themes[key];
+        const selected = key === currentTheme ? 'selected' : '';
+        return `<div class="theme-item ${selected}" style="background:${theme.color}" onclick="selectTheme('${key}')" title="${theme.name}">${theme.name.replace('号线', '')}</div>`;
+    }).join('');
+}
+
+function selectTheme(key) {
+    applyTheme(key);
+    openThemeModal();
+}
+
+function closeThemeModal(e) {
+    if (e && e.target !== document.getElementById('theme-modal')) return;
+    document.getElementById('theme-modal').classList.remove('show');
 }
 
 function toggleAuthMode() {
@@ -49,7 +133,7 @@ function toggleAuthMode() {
         authBtn.textContent = '创建账号';
         switchText.textContent = '已有账号？';
         switchBtn.textContent = '直接登录';
-        title.textContent = '欢迎来到我的空间';
+        title.textContent = '欢迎来到Banli🌰的空间';
     }
     document.getElementById('auth-error').textContent = '';
 }
@@ -65,7 +149,7 @@ function handleAuth(e) {
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
-        if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
+        if (password.length < 6) { errorEl.textContent = '密码至少6位'; return; }
         if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
         
         const user = { username, password: hashPassword(password), createdAt: new Date().toISOString() };
@@ -97,21 +181,7 @@ function showMainScreen() {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('main-screen').style.display = 'flex';
     document.getElementById('nav-username').textContent = currentUser.username;
-    document.getElementById('hero-username').textContent = currentUser.username;
-    updateGreeting();
     loadData();
-    updateStats();
-}
-
-function updateGreeting() {
-    const hour = new Date().getHours();
-    let greeting = '你好';
-    if (hour < 6) greeting = '夜深了';
-    else if (hour < 12) greeting = '早上好';
-    else if (hour < 14) greeting = '中午好';
-    else if (hour < 18) greeting = '下午好';
-    else greeting = '晚上好';
-    document.getElementById('hero-greeting').textContent = greeting;
 }
 
 function logout() {
@@ -132,17 +202,73 @@ function switchPage(pageName) {
     });
 }
 
-function loadData() { loadLifeRecords(); loadWorks(); }
+function loadData() {
+    loadFeed();
+    loadLifeRecords();
+    loadWorks();
+}
+
+function loadFeed() {
+    const allItems = [
+        ...getLifeRecords().map(r => ({ ...r, type: 'life' })),
+        ...getWorks().map(w => ({ ...w, type: 'work' }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+    
+    const container = document.getElementById('feed-list');
+    const emptyState = document.getElementById('feed-empty');
+    
+    if (allItems.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    container.innerHTML = allItems.map(item => createFeedItem(item)).join('');
+}
+
+function createFeedItem(item) {
+    const date = new Date(item.date).toLocaleDateString('zh-CN');
+    const typeName = item.type === 'life' ? '生活' : '作品';
+    const imageHtml = item.image ? `<div class="feed-image"><img src="${item.image}" alt=""></div>` : '';
+    const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
+    
+    return `
+        <div class="feed-item">
+            <div class="feed-header">
+                <div class="feed-avatar">${currentUser.username.charAt(0).toUpperCase()}</div>
+                <div class="feed-info">
+                    <div class="feed-author">${escapeHtml(currentUser.username)}</div>
+                    <div class="feed-time">${date}</div>
+                </div>
+                <span class="feed-type ${item.type}">${typeName}</span>
+            </div>
+            <div class="feed-content">
+                <div class="feed-title">${escapeHtml(item.title)}</div>
+                <div class="feed-text">${escapeHtml(item.content)}</div>
+                ${imageHtml}
+                ${tags ? `<div class="feed-tags">${tags}</div>` : ''}
+            </div>
+            <div class="feed-actions">
+                <button class="feed-action" onclick="shareToWeChat('${item.id}', '${item.type}')">📤 分享到微信</button>
+                <button class="feed-action" onclick="editItem('${item.type}', '${item.id}')">✏️ 编辑</button>
+                <button class="feed-action delete" onclick="deleteItem('${item.type}', '${item.id}')">🗑️ 删除</button>
+            </div>
+        </div>
+    `;
+}
 
 function loadLifeRecords() {
     const records = getLifeRecords();
     const container = document.getElementById('life-list');
     const emptyState = document.getElementById('life-empty');
+    
     if (records.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'block';
         return;
     }
+    
     emptyState.style.display = 'none';
     container.innerHTML = records.map(r => createCard(r, 'life')).join('');
 }
@@ -151,27 +277,36 @@ function loadWorks() {
     const works = getWorks();
     const container = document.getElementById('works-list');
     const emptyState = document.getElementById('works-empty');
+    
     if (works.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'block';
         return;
     }
+    
     emptyState.style.display = 'none';
     container.innerHTML = works.map(w => createCard(w, 'work')).join('');
 }
 
 function createCard(item, type) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
-    const tags = item.tags ? item.tags.map(t => '<span class="tag">' + t + '</span>').join('') : '';
-    return '<div class="card" onclick="viewItem(\'' + type + '\', \'' + item.id + '\')">' +
-        '<div class="card-date">' + date + '</div>' +
-        '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
-        '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
-        (tags ? '<div class="card-tags">' + tags + '</div>' : '') +
-        '<div class="card-actions" onclick="event.stopPropagation()">' +
-        '<button onclick="editItem(\'' + type + '\', \'' + item.id + '\')">编辑</button>' +
-        '<button class="delete-btn" onclick="deleteItem(\'' + type + '\', \'' + item.id + '\')">删除</button>' +
-        '</div></div>';
+    const imageHtml = item.image ? `<div class="card-image"><img src="${item.image}" alt=""></div>` : '';
+    const tags = item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : '';
+    
+    return `
+        <div class="card" onclick="viewItem('${type}', '${item.id}')">
+            <div class="card-date">${date}</div>
+            <div class="card-title">${escapeHtml(item.title)}</div>
+            <div class="card-content">${escapeHtml(item.content)}</div>
+            ${imageHtml}
+            ${tags ? `<div class="card-tags">${tags}</div>` : ''}
+            <div class="card-actions" onclick="event.stopPropagation()">
+                <button onclick="shareToWeChat('${item.id}', '${type}')">分享</button>
+                <button onclick="editItem('${type}', '${item.id}')">编辑</button>
+                <button class="delete-btn" onclick="deleteItem('${type}', '${item.id}')">删除</button>
+            </div>
+        </div>
+    `;
 }
 
 function getLifeRecords() {
@@ -184,13 +319,29 @@ function getWorks() {
     return data ? JSON.parse(data) : [];
 }
 
+function previewImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        tempImageData = event.target.result;
+        document.getElementById('image-preview').innerHTML = `<img src="${tempImageData}" alt="预览">`;
+    };
+    reader.readAsDataURL(file);
+}
+
 function openModal(type, itemId = null) {
     const modal = document.getElementById('modal');
     const form = document.getElementById('modal-form');
     const title = document.getElementById('modal-title');
+    
     form.reset();
+    tempImageData = null;
+    document.getElementById('image-preview').innerHTML = '';
     document.getElementById('item-type').value = type;
     document.getElementById('item-id').value = itemId || '';
+    
     title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
     document.getElementById('item-date').valueAsDate = new Date();
     
@@ -202,8 +353,13 @@ function openModal(type, itemId = null) {
             document.getElementById('item-content').value = item.content;
             document.getElementById('item-date').value = item.date;
             document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
+            if (item.image) {
+                tempImageData = item.image;
+                document.getElementById('image-preview').innerHTML = `<img src="${item.image}" alt="预览">`;
+            }
         }
     }
+    
     modal.classList.add('show');
 }
 
@@ -214,6 +370,7 @@ function closeModal(e) {
 
 function saveItem(e) {
     e.preventDefault();
+    
     const type = document.getElementById('item-type').value;
     const itemId = document.getElementById('item-id').value;
     const title = document.getElementById('item-title').value.trim();
@@ -222,7 +379,12 @@ function saveItem(e) {
     const tagsInput = document.getElementById('item-tags').value.trim();
     const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
     
-    const item = { id: itemId || generateId(), title, content, date, tags, updatedAt: new Date().toISOString() };
+    const item = {
+        id: itemId || generateId(),
+        title, content, date, tags,
+        image: tempImageData,
+        updatedAt: new Date().toISOString()
+    };
     
     if (type === 'life') {
         const records = getLifeRecords();
@@ -233,7 +395,6 @@ function saveItem(e) {
             records.unshift(item);
         }
         localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-        loadLifeRecords();
     } else {
         const works = getWorks();
         if (itemId) {
@@ -243,46 +404,82 @@ function saveItem(e) {
             works.unshift(item);
         }
         localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-        loadWorks();
     }
+    
     closeModal();
-    updateStats();
+    loadData();
 }
 
-function editItem(type, itemId) { openModal(type, itemId); }
+function editItem(type, itemId) {
+    openModal(type, itemId);
+}
 
 function viewItem(type, itemId) {
     const items = type === 'life' ? getLifeRecords() : getWorks();
     const item = items.find(i => i.id === itemId);
     if (!item) return;
+    
     const typeName = type === 'life' ? '生活记录' : '作品';
-    const tags = item.tags && item.tags.length ? '\n标签：' + item.tags.join(', ') : '';
-    alert(typeName + '\n\n标题：' + item.title + '\n日期：' + new Date(item.date).toLocaleDateString('zh-CN') + '\n\n' + item.content + tags);
+    let text = `${typeName}\n\n标题：${item.title}\n日期：${new Date(item.date).toLocaleDateString('zh-CN')}\n\n${item.content}`;
+    if (item.tags && item.tags.length) text += `\n标签：${item.tags.join(', ')}`;
+    alert(text);
 }
 
 function deleteItem(type, itemId) {
     if (!confirm('确定要删除吗？')) return;
+    
     if (type === 'life') {
         const records = getLifeRecords().filter(r => r.id !== itemId);
         localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-        loadLifeRecords();
     } else {
         const works = getWorks().filter(w => w.id !== itemId);
         localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-        loadWorks();
     }
-    updateStats();
+    loadData();
 }
 
-function updateStats() {
-    document.getElementById('life-count').textContent = getLifeRecords().length;
-    document.getElementById('work-count').textContent = getWorks().length;
-    if (currentUser && currentUser.createdAt) {
-        const created = new Date(currentUser.createdAt);
-        const now = new Date();
-        const days = Math.floor((now - created) / (1000 * 60 * 60 * 24)) + 1;
-        document.getElementById('days-count').textContent = days;
+function shareToWeChat(itemId, type) {
+    const modal = document.getElementById('share-modal');
+    const url = window.location.href + '#' + type + '-' + itemId;
+    
+    document.getElementById('share-url').textContent = url;
+    
+    const qrcodeEl = document.getElementById('qrcode');
+    qrcodeEl.innerHTML = '';
+    
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(qrcodeEl, {
+            text: url,
+            width: 200,
+            height: 200,
+            colorDark: '#000000',
+            colorLight: '#ffffff'
+        });
+    } else {
+        qrcodeEl.innerHTML = '<p style="color:#999">二维码加载失败</p>';
     }
+    
+    modal.classList.add('show');
+}
+
+function closeShareModal(e) {
+    if (e && e.target !== document.getElementById('share-modal')) return;
+    document.getElementById('share-modal').classList.remove('show');
+}
+
+function copyShareLink() {
+    const url = document.getElementById('share-url').textContent;
+    navigator.clipboard.writeText(url).then(() => {
+        alert('链接已复制');
+    }).catch(() => {
+        const input = document.createElement('input');
+        input.value = url;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        alert('链接已复制');
+    });
 }
 
 function generateId() {
@@ -296,5 +493,9 @@ function escapeHtml(text) {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+        closeModal();
+        closeThemeModal();
+        closeShareModal();
+    }
 });
