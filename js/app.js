@@ -64,6 +64,9 @@ let currentUser = null;
 let isLoginMode = false;
 let currentTheme = 'default';
 let tempImageData = null;
+let tempFileName = null;
+let tempFileType = null;
+let tempFileSize = null;
 let currentAvatar = DEFAULT_AVATAR;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -426,12 +429,25 @@ function loadFeed() {
 function createFeedItem(item) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
     const typeName = item.type === 'life' ? '生活' : '作品';
-    const imageHtml = item.image ? `<div class="feed-image"><img src="${item.image}" alt=""></div>` : '';
     const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
     
     const avatarHtml = currentAvatar 
         ? `<img src="${currentAvatar}" alt="avatar">`
         : `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
+    
+    // 文件展示
+    let fileHtml = '';
+    if (item.image) {
+        if (item.fileType && item.fileType.startsWith('image/')) {
+            fileHtml = `<div class="feed-image"><img src="${item.image}" alt=""></div>`;
+        } else {
+            const icon = getFileIcon(item.fileName || '');
+            fileHtml = `<a href="${item.image}" download="${item.fileName || 'file'}" class="feed-file">
+                <span class="feed-file-icon">${icon}</span>
+                <span class="feed-file-name">${escapeHtml(item.fileName || '附件')} (${item.fileSize || ''})</span>
+            </a>`;
+        }
+    }
     
     return `
         <div class="feed-item">
@@ -447,7 +463,7 @@ function createFeedItem(item) {
             <div class="feed-content">
                 <div class="feed-title">${escapeHtml(item.title)}</div>
                 <div class="feed-text">${escapeHtml(item.content)}</div>
-                ${imageHtml}
+                ${fileHtml}
                 ${tags ? `<div class="feed-tags">${tags}</div>` : ''}
             </div>
             <div class="feed-actions">
@@ -494,15 +510,24 @@ function loadWorks() {
 // 创建卡片
 function createCard(item, type) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
-    const imageHtml = item.image ? `<div class="card-image"><img src="${item.image}" alt=""></div>` : '';
     const tags = item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : '';
+    
+    // 文件展示
+    let fileHtml = '';
+    if (item.image) {
+        if (item.fileType && item.fileType.startsWith('image/')) {
+            fileHtml = `<div class="card-image"><img src="${item.image}" alt=""></div>`;
+        } else {
+            fileHtml = `<div class="card-tags"><span class="tag">📎 ${escapeHtml(item.fileName || '附件')}</span></div>`;
+        }
+    }
     
     return `
         <div class="card" onclick="viewItem('${type}', '${item.id}')">
             <div class="card-date">${date}</div>
             <div class="card-title">${escapeHtml(item.title)}</div>
             <div class="card-content">${escapeHtml(item.content)}</div>
-            ${imageHtml}
+            ${fileHtml}
             ${tags ? `<div class="card-tags">${tags}</div>` : ''}
             <div class="card-actions" onclick="event.stopPropagation()">
                 <button onclick="shareToWeChat('${item.id}', '${type}')">分享</button>
@@ -524,17 +549,70 @@ function getWorks() {
     return data ? JSON.parse(data) : [];
 }
 
-// 图片预览
-function previewImage(e) {
+// 文件预览
+function previewFile(e) {
     const file = e.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
         tempImageData = event.target.result;
-        document.getElementById('image-preview').innerHTML = `<img src="${tempImageData}" alt="预览">`;
+        tempFileName = file.name;
+        tempFileType = file.type;
+        tempFileSize = formatFileSize(file.size);
+        
+        const preview = document.getElementById('image-preview');
+        
+        if (file.type.startsWith('image/')) {
+            preview.innerHTML = `<img src="${tempImageData}" alt="预览">`;
+        } else {
+            const icon = getFileIcon(file.name);
+            preview.innerHTML = `
+                <div class="file-preview">
+                    <span class="file-icon">${icon}</span>
+                    <div class="file-info">
+                        <div class="file-name">${escapeHtml(file.name)}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <button type="button" class="file-remove" onclick="removeFile()">×</button>
+                </div>
+            `;
+        }
     };
     reader.readAsDataURL(file);
+}
+
+function removeFile() {
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('item-image').value = '';
+    document.getElementById('image-preview').innerHTML = '';
+}
+
+function getFileIcon(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const icons = {
+        'pdf': '📄',
+        'doc': '📝', 'docx': '📝',
+        'ppt': '📊', 'pptx': '📊',
+        'xls': '📈', 'xlsx': '📈',
+        'json': '📋',
+        'txt': '📃',
+        'zip': '📦', 'rar': '📦',
+        'mp3': '🎵', 'wav': '🎵',
+        'mp4': '🎬', 'avi': '🎬',
+    };
+    return icons[ext] || '📎';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // 打开弹窗
@@ -545,6 +623,9 @@ function openModal(type, itemId = null) {
     
     form.reset();
     tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
     document.getElementById('image-preview').innerHTML = '';
     document.getElementById('item-type').value = type;
     document.getElementById('item-id').value = itemId || '';
@@ -562,7 +643,25 @@ function openModal(type, itemId = null) {
             document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
             if (item.image) {
                 tempImageData = item.image;
-                document.getElementById('image-preview').innerHTML = `<img src="${item.image}" alt="预览">`;
+                tempFileName = item.fileName;
+                tempFileType = item.fileType;
+                tempFileSize = item.fileSize;
+                
+                const preview = document.getElementById('image-preview');
+                if (item.fileType && item.fileType.startsWith('image/')) {
+                    preview.innerHTML = `<img src="${item.image}" alt="预览">`;
+                } else {
+                    const icon = getFileIcon(item.fileName || '');
+                    preview.innerHTML = `
+                        <div class="file-preview">
+                            <span class="file-icon">${icon}</span>
+                            <div class="file-info">
+                                <div class="file-name">${escapeHtml(item.fileName || '附件')}</div>
+                                <div class="file-size">${item.fileSize || ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }
             }
         }
     }
@@ -591,6 +690,9 @@ function saveItem(e) {
         id: itemId || generateId(),
         title, content, date, tags,
         image: tempImageData,
+        fileName: tempFileName,
+        fileType: tempFileType,
+        fileSize: tempFileSize,
         updatedAt: new Date().toISOString()
     };
     
@@ -632,6 +734,7 @@ function viewItem(type, itemId) {
     const typeName = type === 'life' ? '生活记录' : '作品';
     let text = `${typeName}\n\n标题：${item.title}\n日期：${new Date(item.date).toLocaleDateString('zh-CN')}\n\n${item.content}`;
     if (item.tags && item.tags.length) text += `\n标签：${item.tags.join(', ')}`;
+    if (item.fileName) text += `\n附件：${item.fileName}`;
     alert(text);
 }
 
