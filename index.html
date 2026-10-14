@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <!-- 注册/登录界面 -->
     <div id="auth-screen" class="auth-screen">
         <div class="auth-container">
             <div class="auth-logo"><span class="logo-icon">◆</span></div>
@@ -14,8 +15,8 @@
             <p class="auth-subtitle">记录生活 · 收藏作品</p>
             <form id="auth-form" class="auth-form">
                 <div class="input-group">
-                    <input type="text" id="username" placeholder=" " required>
-                    <label>你的名称</label>
+                    <input type="text" id="username" placeholder=" " required maxlength="12">
+                    <label>你的名称（最多12字）</label>
                 </div>
                 <div class="input-group">
                     <input type="password" id="password" placeholder=" " required>
@@ -28,10 +29,12 @@
                 <p id="auth-error" class="auth-error"></p>
                 <button type="submit" class="auth-btn">创建账号</button>
                 <p class="auth-switch"><span id="auth-switch-text">已有账号？</span><a href="#" id="auth-switch-btn">直接登录</a></p>
+                <p class="auth-switch"><a href="#" onclick="openResetModal()">忘记密码？</a></p>
             </form>
         </div>
     </div>
 
+    <!-- 主界面 -->
     <div id="main-screen" style="display:none;">
         <nav class="navbar">
             <div class="nav-brand">
@@ -45,6 +48,7 @@
                 <a href="#" class="nav-link active" data-page="home">首页</a>
                 <a href="#" class="nav-link" data-page="life">生活记录</a>
                 <a href="#" class="nav-link" data-page="works">作品集</a>
+                <a href="#" class="nav-link" data-page="friends">好友</a>
                 <a href="#" class="nav-link" data-page="settings">设置</a>
                 <button id="theme-btn" class="theme-btn">🎨 主题</button>
                 <button id="logout-btn" class="logout-btn">退出</button>
@@ -77,9 +81,39 @@
             <div id="works-empty" class="empty-state"><p>还没有收藏作品</p></div>
         </section>
 
+        <section id="page-friends" class="page">
+            <div class="section-header">
+                <h2>我的好友</h2>
+                <button class="add-btn" onclick="openAddFriendModal()">+ 添加好友</button>
+            </div>
+            <div id="friend-requests-section" style="display:none;">
+                <h3 style="font-size:16px;margin-bottom:12px;">好友请求</h3>
+                <div id="friend-requests-list"></div>
+            </div>
+            <div id="friends-list" class="friends-grid"></div>
+            <div id="friends-empty" class="empty-state">
+                <p>还没有好友</p>
+                <p class="empty-hint">点击右上角添加好友</p>
+            </div>
+        </section>
+
         <section id="page-settings" class="page">
             <div class="settings-container">
                 <h2>个人设置</h2>
+                
+                <div class="settings-section">
+                    <h3>外观</h3>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <span class="setting-label">深色模式</span>
+                            <span class="setting-desc">切换为深色背景</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
                 
                 <div class="settings-section">
                     <h3>头像</h3>
@@ -99,8 +133,8 @@
                     <h3>修改用户名</h3>
                     <form id="username-form" onsubmit="changeUsername(event)">
                         <div class="form-group">
-                            <label>新用户名</label>
-                            <input type="text" id="new-username" required minlength="2">
+                            <label>新用户名（最多12字）</label>
+                            <input type="text" id="new-username" required minlength="2" maxlength="12">
                         </div>
                         <p id="username-error" class="auth-error"></p>
                         <p id="username-success" class="success-message"></p>
@@ -148,6 +182,7 @@
         </section>
     </div>
 
+    <!-- 主题选择弹窗 -->
     <div id="theme-modal" class="modal" onclick="closeThemeModal(event)">
         <div class="modal-content theme-modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -169,6 +204,33 @@
         </div>
     </div>
 
+    <!-- 添加好友弹窗 -->
+    <div id="friend-modal" class="modal" onclick="closeFriendModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>添加好友</h3>
+                <button class="close-btn" onclick="closeFriendModal()">&times;</button>
+            </div>
+            <form id="friend-form" onsubmit="sendFriendRequest(event)">
+                <div class="form-group">
+                    <label>对方用户ID</label>
+                    <input type="text" id="friend-id" placeholder="例如：NYS-Kn001" required>
+                </div>
+                <div class="form-group">
+                    <label>验证消息</label>
+                    <textarea id="friend-message" rows="3" placeholder="我是..."></textarea>
+                </div>
+                <p id="friend-error" class="auth-error"></p>
+                <p id="friend-success" class="success-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeFriendModal()">取消</button>
+                    <button type="submit" class="btn-primary">发送请求</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑弹窗 -->
     <div id="modal" class="modal" onclick="closeModal(event)">
         <div class="modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -190,7 +252,6 @@
                 <div class="form-group">
                     <label>附件（图片/PDF/PPT/Word/JSON等）</label>
                     <input type="file" id="item-image" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.json,.txt,.xlsx,.xls,.zip,.rar,.mp3,.mp4" onchange="previewFile(event)">
-
                     <div id="image-preview" class="image-preview"></div>
                 </div>
                 <div class="form-group">
@@ -209,6 +270,7 @@
         </div>
     </div>
 
+    <!-- 分享弹窗 -->
     <div id="share-modal" class="modal" onclick="closeShareModal(event)">
         <div class="modal-content share-modal-content" onclick="event.stopPropagation()">
             <div class="modal-header">
@@ -220,6 +282,36 @@
                 <p class="share-url" id="share-url"></p>
                 <button class="btn-primary" onclick="copyShareLink()">复制链接</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 重置密码弹窗 -->
+    <div id="reset-modal" class="modal" onclick="closeResetModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>重置密码</h3>
+                <button class="close-btn" onclick="closeResetModal()">&times;</button>
+            </div>
+            <form id="reset-form" onsubmit="resetPassword(event)">
+                <div class="form-group">
+                    <label>管理员口令</label>
+                    <input type="password" id="admin-code" placeholder="请输入管理员口令" required>
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" id="reset-new-password" required minlength="4">
+                </div>
+                <div class="form-group">
+                    <label>确认新密码</label>
+                    <input type="password" id="reset-confirm-password" required>
+                </div>
+                <p id="reset-error" class="auth-error"></p>
+                <p id="reset-success" class="success-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeResetModal()">取消</button>
+                    <button type="submit" class="btn-primary">重置密码</button>
+                </div>
+            </form>
         </div>
     </div>
 
