@@ -5,7 +5,11 @@ const StorageKeys = {
     WORKS: 'site_works',
     THEME: 'site_theme',
     AVATAR: 'site_avatar',
-    USER_COUNT: 'site_user_count'
+    USER_COUNT: 'site_user_count',
+    DARK_MODE: 'site_dark_mode',
+    FRIENDS: 'site_friends',
+    FRIEND_REQUESTS: 'site_friend_requests',
+    USERS: 'site_users'
 };
 
 // 主题配置
@@ -59,6 +63,8 @@ const Emojis = [
 ];
 
 const DEFAULT_AVATAR = '';
+const MAX_USERNAME_LENGTH = 12;
+const ADMIN_CODE = 'wknwknwkn';
 
 let currentUser = null;
 let isLoginMode = false;
@@ -68,15 +74,16 @@ let tempFileName = null;
 let tempFileType = null;
 let tempFileSize = null;
 let currentAvatar = DEFAULT_AVATAR;
+let isDarkMode = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     setupEventListeners();
     loadTheme();
+    loadDarkMode();
     initEmojiPicker();
 });
 
-// 生成用户ID：NYS-Kn001 格式
 function generateUserId() {
     let count = parseInt(localStorage.getItem(StorageKeys.USER_COUNT) || '0');
     count++;
@@ -109,7 +116,24 @@ function setupEventListeners() {
     });
 }
 
-// Emoji 选择器
+function loadDarkMode() {
+    const saved = localStorage.getItem(StorageKeys.DARK_MODE) === 'true';
+    isDarkMode = saved;
+    applyDarkMode(saved);
+}
+
+function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    localStorage.setItem(StorageKeys.DARK_MODE, isDarkMode.toString());
+    applyDarkMode(isDarkMode);
+}
+
+function applyDarkMode(enabled) {
+    document.body.classList.toggle('dark-mode', enabled);
+    const toggle = document.getElementById('dark-mode-toggle');
+    if (toggle) toggle.checked = enabled;
+}
+
 function initEmojiPicker() {
     const picker = document.getElementById('emoji-picker');
     if (!picker) return;
@@ -128,7 +152,6 @@ function insertEmoji(emoji) {
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
 }
 
-// 头像管理
 function loadAvatar() {
     const saved = localStorage.getItem(StorageKeys.AVATAR);
     currentAvatar = saved || DEFAULT_AVATAR;
@@ -179,7 +202,6 @@ function resetAvatar() {
     alert('已恢复默认头像');
 }
 
-// 修改用户名
 function changeUsername(e) {
     e.preventDefault();
     const newUsername = document.getElementById('new-username').value.trim();
@@ -191,6 +213,11 @@ function changeUsername(e) {
     
     if (newUsername.length < 2) {
         errorEl.textContent = '用户名至少2个字符';
+        return;
+    }
+    
+    if (newUsername.length > MAX_USERNAME_LENGTH) {
+        errorEl.textContent = `用户名最多${MAX_USERNAME_LENGTH}个字符`;
         return;
     }
     
@@ -210,7 +237,6 @@ function changeUsername(e) {
     }, 3000);
 }
 
-// 修改密码
 function changePassword(e) {
     e.preventDefault();
     const oldPassword = document.getElementById('old-password').value;
@@ -248,7 +274,253 @@ function changePassword(e) {
     }, 3000);
 }
 
-// 主题管理
+// 重置密码
+function openResetModal() {
+    document.getElementById('reset-modal').classList.add('show');
+    document.getElementById('reset-error').textContent = '';
+    document.getElementById('reset-success').textContent = '';
+    document.getElementById('reset-form').reset();
+}
+
+function closeResetModal(e) {
+    if (e && e.target !== document.getElementById('reset-modal')) return;
+    document.getElementById('reset-modal').classList.remove('show');
+}
+
+function resetPassword(e) {
+    e.preventDefault();
+    const adminCode = document.getElementById('admin-code').value;
+    const newPassword = document.getElementById('reset-new-password').value;
+    const confirmPassword = document.getElementById('reset-confirm-password').value;
+    const errorEl = document.getElementById('reset-error');
+    const successEl = document.getElementById('reset-success');
+    
+    errorEl.textContent = '';
+    successEl.textContent = '';
+    
+    if (adminCode !== ADMIN_CODE) {
+        errorEl.textContent = '管理员口令不正确';
+        return;
+    }
+    
+    if (newPassword.length < 4) {
+        errorEl.textContent = '新密码至少4位';
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        errorEl.textContent = '两次新密码不一致';
+        return;
+    }
+    
+    const savedUser = localStorage.getItem(StorageKeys.USER);
+    if (!savedUser) {
+        errorEl.textContent = '没有可重置的账号';
+        return;
+    }
+    
+    const user = JSON.parse(savedUser);
+    user.password = hashPassword(newPassword);
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
+    
+    successEl.textContent = '密码重置成功，请使用新密码登录';
+    
+    setTimeout(() => {
+        closeResetModal();
+        if (!isLoginMode) {
+            toggleAuthMode();
+        }
+    }, 2000);
+}
+
+// 好友系统
+function getAllUsers() {
+    const data = localStorage.getItem(StorageKeys.USERS);
+    return data ? JSON.parse(data) : {};
+}
+
+function saveUser(userId, userData) {
+    const users = getAllUsers();
+    users[userId] = userData;
+    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
+}
+
+function getFriends() {
+    const data = localStorage.getItem(StorageKeys.FRIENDS);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveFriends(friends) {
+    localStorage.setItem(StorageKeys.FRIENDS, JSON.stringify(friends));
+}
+
+function getFriendRequests() {
+    const data = localStorage.getItem(StorageKeys.FRIEND_REQUESTS);
+    return data ? JSON.parse(data) : [];
+}
+
+function saveFriendRequests(requests) {
+    localStorage.setItem(StorageKeys.FRIEND_REQUESTS, JSON.stringify(requests));
+}
+
+function openAddFriendModal() {
+    document.getElementById('friend-modal').classList.add('show');
+    document.getElementById('friend-error').textContent = '';
+    document.getElementById('friend-success').textContent = '';
+}
+
+function closeFriendModal(e) {
+    if (e && e.target !== document.getElementById('friend-modal')) return;
+    document.getElementById('friend-modal').classList.remove('show');
+}
+
+function sendFriendRequest(e) {
+    e.preventDefault();
+    const friendId = document.getElementById('friend-id').value.trim();
+    const message = document.getElementById('friend-message').value.trim();
+    const errorEl = document.getElementById('friend-error');
+    const successEl = document.getElementById('friend-success');
+    
+    errorEl.textContent = '';
+    successEl.textContent = '';
+    
+    if (friendId === currentUser.userId) {
+        errorEl.textContent = '不能添加自己为好友';
+        return;
+    }
+    
+    const users = getAllUsers();
+    if (!users[friendId]) {
+        errorEl.textContent = '用户不存在，请检查ID是否正确';
+        return;
+    }
+    
+    const friends = getFriends();
+    if (friends.includes(friendId)) {
+        errorEl.textContent = '已经是好友了';
+        return;
+    }
+    
+    const requests = getFriendRequests();
+    const existingRequest = requests.find(r => r.from === currentUser.userId && r.to === friendId);
+    if (existingRequest) {
+        errorEl.textContent = '已经发送过好友请求了';
+        return;
+    }
+    
+    const request = {
+        id: generateId(),
+        from: currentUser.userId,
+        fromUsername: currentUser.username,
+        to: friendId,
+        message: message || '请求添加你为好友',
+        timestamp: new Date().toISOString()
+    };
+    
+    requests.push(request);
+    saveFriendRequests(requests);
+    
+    successEl.textContent = '好友请求已发送';
+    document.getElementById('friend-form').reset();
+    
+    setTimeout(() => {
+        closeFriendModal();
+    }, 1500);
+}
+
+function acceptFriendRequest(requestId) {
+    const requests = getFriendRequests();
+    const request = requests.find(r => r.id === requestId);
+    if (!request) return;
+    
+    const friends = getFriends();
+    if (!friends.includes(request.from)) {
+        friends.push(request.from);
+        saveFriends(friends);
+    }
+    
+    const newRequests = requests.filter(r => r.id !== requestId);
+    saveFriendRequests(newRequests);
+    
+    loadFriends();
+    alert('已添加好友');
+}
+
+function rejectFriendRequest(requestId) {
+    const requests = getFriendRequests();
+    const newRequests = requests.filter(r => r.id !== requestId);
+    saveFriendRequests(newRequests);
+    loadFriends();
+}
+
+function removeFriend(friendId) {
+    if (!confirm('确定要删除这个好友吗？')) return;
+    
+    const friends = getFriends().filter(id => id !== friendId);
+    saveFriends(friends);
+    loadFriends();
+}
+
+function loadFriends() {
+    const friends = getFriends();
+    const requests = getFriendRequests();
+    const users = getAllUsers();
+    
+    const requestsSection = document.getElementById('friend-requests-section');
+    const requestsList = document.getElementById('friend-requests-list');
+    const myRequests = requests.filter(r => r.to === currentUser.userId);
+    
+    if (myRequests.length > 0) {
+        requestsSection.style.display = 'block';
+        requestsList.innerHTML = myRequests.map(r => `
+            <div class="friend-request-item">
+                <div class="friend-avatar">
+                    <div class="friend-avatar-text">${r.fromUsername.charAt(0).toUpperCase()}</div>
+                </div>
+                <div class="friend-info">
+                    <div class="friend-name">${escapeHtml(r.fromUsername)}</div>
+                    <div class="friend-id">${r.from}</div>
+                    <div class="friend-request-message">${escapeHtml(r.message)}</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="friend-btn accept" onclick="acceptFriendRequest('${r.id}')">接受</button>
+                    <button class="friend-btn reject" onclick="rejectFriendRequest('${r.id}')">拒绝</button>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        requestsSection.style.display = 'none';
+    }
+    
+    const friendsList = document.getElementById('friends-list');
+    const friendsEmpty = document.getElementById('friends-empty');
+    
+    if (friends.length === 0) {
+        friendsList.innerHTML = '';
+        friendsEmpty.style.display = 'block';
+        return;
+    }
+    
+    friendsEmpty.style.display = 'none';
+    friendsList.innerHTML = friends.map(friendId => {
+        const user = users[friendId] || { username: '未知用户' };
+        return `
+            <div class="friend-item">
+                <div class="friend-avatar">
+                    <div class="friend-avatar-text">${user.username.charAt(0).toUpperCase()}</div>
+                </div>
+                <div class="friend-info">
+                    <div class="friend-name">${escapeHtml(user.username)}</div>
+                    <div class="friend-id">${friendId}</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="friend-btn remove" onclick="removeFriend('${friendId}')">删除</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
 function loadTheme() {
     const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
     currentTheme = saved;
@@ -289,7 +561,6 @@ function closeThemeModal(e) {
     document.getElementById('theme-modal').classList.remove('show');
 }
 
-// 切换登录/注册模式
 function toggleAuthMode() {
     isLoginMode = !isLoginMode;
     const confirmGroup = document.getElementById('confirm-group');
@@ -314,7 +585,6 @@ function toggleAuthMode() {
     document.getElementById('auth-error').textContent = '';
 }
 
-// 处理注册/登录
 function handleAuth(e) {
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
@@ -323,6 +593,7 @@ function handleAuth(e) {
     const errorEl = document.getElementById('auth-error');
     
     if (!username) { errorEl.textContent = '请输入名称'; return; }
+    if (username.length > MAX_USERNAME_LENGTH) { errorEl.textContent = `用户名最多${MAX_USERNAME_LENGTH}个字符`; return; }
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
@@ -337,6 +608,8 @@ function handleAuth(e) {
             createdAt: new Date().toISOString() 
         };
         localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
+        saveUser(userId, { username, createdAt: user.createdAt });
+        
         currentUser = user;
         loadAvatar();
         showMainScreen();
@@ -362,7 +635,6 @@ function hashPassword(password) {
     return hash.toString();
 }
 
-// 显示主界面
 function showMainScreen() {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('main-screen').style.display = 'flex';
@@ -376,9 +648,9 @@ function showMainScreen() {
     
     updateAvatarDisplay();
     loadData();
+    loadFriends();
 }
 
-// 退出登录
 function logout() {
     if (confirm('确定要退出吗？')) {
         currentUser = null;
@@ -388,7 +660,6 @@ function logout() {
     }
 }
 
-// 切换页面
 function switchPage(pageName) {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.toggle('active', link.dataset.page === pageName);
@@ -396,16 +667,18 @@ function switchPage(pageName) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.toggle('active', page.id === 'page-' + pageName);
     });
+    
+    if (pageName === 'friends') {
+        loadFriends();
+    }
 }
 
-// 加载数据
 function loadData() {
     loadFeed();
     loadLifeRecords();
     loadWorks();
 }
 
-// 加载朋友圈
 function loadFeed() {
     const allItems = [
         ...getLifeRecords().map(r => ({ ...r, type: 'life' })),
@@ -425,7 +698,6 @@ function loadFeed() {
     container.innerHTML = allItems.map(item => createFeedItem(item)).join('');
 }
 
-// 创建朋友圈条目
 function createFeedItem(item) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
     const typeName = item.type === 'life' ? '生活' : '作品';
@@ -435,7 +707,6 @@ function createFeedItem(item) {
         ? `<img src="${currentAvatar}" alt="avatar">`
         : `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
     
-    // 文件展示
     let fileHtml = '';
     if (item.image) {
         if (item.fileType && item.fileType.startsWith('image/')) {
@@ -475,7 +746,6 @@ function createFeedItem(item) {
     `;
 }
 
-// 加载生活记录
 function loadLifeRecords() {
     const records = getLifeRecords();
     const container = document.getElementById('life-list');
@@ -491,7 +761,6 @@ function loadLifeRecords() {
     container.innerHTML = records.map(r => createCard(r, 'life')).join('');
 }
 
-// 加载作品
 function loadWorks() {
     const works = getWorks();
     const container = document.getElementById('works-list');
@@ -507,12 +776,10 @@ function loadWorks() {
     container.innerHTML = works.map(w => createCard(w, 'work')).join('');
 }
 
-// 创建卡片
 function createCard(item, type) {
     const date = new Date(item.date).toLocaleDateString('zh-CN');
     const tags = item.tags ? item.tags.map(t => `<span class="tag">${t}</span>`).join('') : '';
     
-    // 文件展示
     let fileHtml = '';
     if (item.image) {
         if (item.fileType && item.fileType.startsWith('image/')) {
@@ -538,7 +805,6 @@ function createCard(item, type) {
     `;
 }
 
-// 获取数据
 function getLifeRecords() {
     const data = localStorage.getItem(StorageKeys.LIFE);
     return data ? JSON.parse(data) : [];
@@ -549,7 +815,6 @@ function getWorks() {
     return data ? JSON.parse(data) : [];
 }
 
-// 文件预览
 function previewFile(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -615,7 +880,6 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// 打开弹窗
 function openModal(type, itemId = null) {
     const modal = document.getElementById('modal');
     const form = document.getElementById('modal-form');
@@ -674,7 +938,6 @@ function closeModal(e) {
     document.getElementById('modal').classList.remove('show');
 }
 
-// 保存数据
 function saveItem(e) {
     e.preventDefault();
     
@@ -720,12 +983,10 @@ function saveItem(e) {
     loadData();
 }
 
-// 编辑项目
 function editItem(type, itemId) {
     openModal(type, itemId);
 }
 
-// 查看项目
 function viewItem(type, itemId) {
     const items = type === 'life' ? getLifeRecords() : getWorks();
     const item = items.find(i => i.id === itemId);
@@ -738,7 +999,6 @@ function viewItem(type, itemId) {
     alert(text);
 }
 
-// 删除项目
 function deleteItem(type, itemId) {
     if (!confirm('确定要删除吗？')) return;
     
@@ -752,7 +1012,6 @@ function deleteItem(type, itemId) {
     loadData();
 }
 
-// 分享到微信
 function shareToWeChat(itemId, type) {
     const modal = document.getElementById('share-modal');
     const url = window.location.href + '#' + type + '-' + itemId;
@@ -781,7 +1040,6 @@ function copyShareLink() {
     });
 }
 
-// 工具函数
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
@@ -792,11 +1050,12 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ESC键关闭弹窗
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeModal();
         closeThemeModal();
         closeShareModal();
+        closeFriendModal();
+        closeResetModal();
     }
 });
