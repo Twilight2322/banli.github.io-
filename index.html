@@ -34,7 +34,13 @@
 
     <div id="main-screen" style="display:none;">
         <nav class="navbar">
-            <div class="nav-brand"><span class="logo-icon">◆</span><span id="nav-username"></span></div>
+            <div class="nav-brand">
+                <div class="nav-avatar" id="nav-avatar"></div>
+                <div class="nav-user-info">
+                    <span id="nav-username"></span>
+                    <span class="nav-user-id" id="nav-userid"></span>
+                </div>
+            </div>
             <div class="nav-links">
                 <a href="#" class="nav-link active" data-page="home">首页</a>
                 <a href="#" class="nav-link" data-page="life">生活记录</a>
@@ -79,7 +85,7 @@
                     <h3>头像</h3>
                     <div class="avatar-section">
                         <div class="avatar-preview">
-                            <img id="current-avatar" src="assets/default-avatar.png" alt="头像">
+                            <img id="current-avatar" src="" alt="头像">
                         </div>
                         <div class="avatar-actions">
                             <input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="changeAvatar(event)">
@@ -87,6 +93,19 @@
                             <button class="btn-secondary" onclick="resetAvatar()">恢复默认</button>
                         </div>
                     </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>修改用户名</h3>
+                    <form id="username-form" onsubmit="changeUsername(event)">
+                        <div class="form-group">
+                            <label>新用户名</label>
+                            <input type="text" id="new-username" required minlength="2">
+                        </div>
+                        <p id="username-error" class="auth-error"></p>
+                        <p id="username-success" class="success-message"></p>
+                        <button type="submit" class="btn-primary">修改用户名</button>
+                    </form>
                 </div>
 
                 <div class="settings-section">
@@ -112,6 +131,10 @@
 
                 <div class="settings-section">
                     <h3>账号信息</h3>
+                    <div class="info-row">
+                        <span class="info-label">用户ID</span>
+                        <span id="settings-userid" class="user-id-badge"></span>
+                    </div>
                     <div class="info-row">
                         <span class="info-label">用户名</span>
                         <span id="settings-username"></span>
@@ -161,7 +184,8 @@
                 </div>
                 <div class="form-group">
                     <label>内容</label>
-                    <textarea id="item-content" rows="4" required></textarea>
+                    <div class="emoji-picker" id="emoji-picker"></div>
+                    <textarea id="item-content" rows="4" required placeholder="记录你的生活..."></textarea>
                 </div>
                 <div class="form-group">
                     <label>图片</label>
