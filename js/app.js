@@ -1,15 +1,15 @@
 // 数据管理
 const StorageKeys = {
-    CURRENT_USER: 'site_current_user',
-    USERS: 'site_users',
-    USER_COUNT: 'site_user_count',
+    USER: 'site_user',
     LIFE: 'site_life',
     WORKS: 'site_works',
     THEME: 'site_theme',
+    AVATAR: 'site_avatar',
+    USER_COUNT: 'site_user_count',
     DARK_MODE: 'site_dark_mode',
     FRIENDS: 'site_friends',
     FRIEND_REQUESTS: 'site_friend_requests',
-    AVATARS: 'site_avatars'
+    USERS: 'site_users'
 };
 
 // 主题配置
@@ -22,12 +22,14 @@ const Themes = {
     'orange': { name: '橙色', color: '#fa8c16' },
     'red': { name: '红色', color: '#f5222d' },
     'teal': { name: '青色', color: '#13c2c2' },
+    
     'cs1': { name: '长沙1号线', color: '#E60012' },
     'cs2': { name: '长沙2号线', color: '#00AFEC' },
     'cs3': { name: '长沙3号线', color: '#ABCD03' },
     'cs4': { name: '长沙4号线', color: '#920783' },
     'cs5': { name: '长沙5号线', color: '#FFE200' },
     'cs6': { name: '长沙6号线', color: '#005BAC' },
+    
     'gz1': { name: '广州1号线', color: '#edcf3b' },
     'gz2': { name: '广州2号线', color: '#00679e' },
     'gz3': { name: '广州3号线', color: '#e89e47' },
@@ -44,6 +46,7 @@ const Themes = {
     'gz14': { name: '广州14号线', color: '#792720' },
 };
 
+// Emoji 列表
 const Emojis = [
     '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😜', '🤪', '🤔',
     '😎', '🥳', '😢', '😭', '😤', '😡', '🥺', '😴', '🤯', '🥶',
@@ -59,6 +62,7 @@ const Emojis = [
     '🌊', '🏖️', '🏝️', '🏔️', '⛰️', '🌋', '🏜️', '🏞️', '🌅', '🌄'
 ];
 
+const DEFAULT_AVATAR = '';
 const MAX_USERNAME_LENGTH = 12;
 const ADMIN_CODE = 'wknwknwkn';
 
@@ -69,6 +73,7 @@ let tempImageData = null;
 let tempFileName = null;
 let tempFileType = null;
 let tempFileSize = null;
+let currentAvatar = DEFAULT_AVATAR;
 let isDarkMode = false;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -79,23 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmojiPicker();
 });
 
-// 用户管理
-function getAllUsers() {
-    const data = localStorage.getItem(StorageKeys.USERS);
-    return data ? JSON.parse(data) : {};
-}
-
-function saveUser(userId, userData) {
-    const users = getAllUsers();
-    users[userId] = userData;
-    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
-}
-
-function getUser(userId) {
-    const users = getAllUsers();
-    return users[userId];
-}
-
 function generateUserId() {
     let count = parseInt(localStorage.getItem(StorageKeys.USER_COUNT) || '0');
     count++;
@@ -103,89 +91,12 @@ function generateUserId() {
     return 'NYS-Kn' + count.toString().padStart(3, '0');
 }
 
-function getCurrentUser() {
-    const userId = localStorage.getItem(StorageKeys.CURRENT_USER);
-    if (userId) {
-        return getUser(userId);
-    }
-    return null;
-}
-
-function setCurrentUser(userId) {
-    if (userId) {
-        localStorage.setItem(StorageKeys.CURRENT_USER, userId);
-    } else {
-        localStorage.removeItem(StorageKeys.CURRENT_USER);
-    }
-}
-
-// 头像管理
-function getAvatar(userId) {
-    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-    return avatars[userId] || '';
-}
-
-function saveAvatar(userId, avatarData) {
-    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-    avatars[userId] = avatarData;
-    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
-}
-
-function removeAvatar(userId) {
-    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-    delete avatars[userId];
-    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
-}
-
 function checkAuth() {
-    currentUser = getCurrentUser();
-    if (currentUser) {
+    const savedUser = localStorage.getItem(StorageKeys.USER);
+    if (savedUser) {
+        currentUser = JSON.parse(savedUser);
+        loadAvatar();
         showMainScreen();
-    } else {
-        showAuthScreen();
-        loadAccountList();
-    }
-}
-
-function loadAccountList() {
-    const users = getAllUsers();
-    const userIds = Object.keys(users);
-    const accountList = document.getElementById('account-list');
-    const accountsDiv = document.getElementById('accounts');
-    
-    if (userIds.length > 0) {
-        accountList.style.display = 'block';
-        accountsDiv.innerHTML = userIds.map(userId => {
-            const user = users[userId];
-            const avatar = getAvatar(userId);
-            const avatarHtml = avatar 
-                ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-                : user.username.charAt(0).toUpperCase();
-            return `
-                <div class="account-item" onclick="loginWithAccount('${userId}')">
-                    <div class="account-avatar">${avatarHtml}</div>
-                    <div class="account-info">
-                        <div class="account-name">${escapeHtml(user.username)}</div>
-                        <div class="account-id">${userId}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } else {
-        accountList.style.display = 'none';
-    }
-}
-
-function loginWithAccount(userId) {
-    const user = getUser(userId);
-    if (!user) return;
-    
-    document.getElementById('username').value = user.username;
-    document.getElementById('password').value = '';
-    document.getElementById('password').focus();
-    
-    if (!isLoginMode) {
-        toggleAuthMode();
     }
 }
 
@@ -241,14 +152,17 @@ function insertEmoji(emoji) {
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
 }
 
+function loadAvatar() {
+    const saved = localStorage.getItem(StorageKeys.AVATAR);
+    currentAvatar = saved || DEFAULT_AVATAR;
+    updateAvatarDisplay();
+}
+
 function updateAvatarDisplay() {
-    if (!currentUser) return;
-    
-    const avatar = getAvatar(currentUser.userId);
     const navAvatar = document.getElementById('nav-avatar');
     if (navAvatar) {
-        if (avatar) {
-            navAvatar.innerHTML = `<img src="${avatar}" alt="avatar">`;
+        if (currentAvatar) {
+            navAvatar.innerHTML = `<img src="${currentAvatar}" alt="avatar">`;
         } else {
             navAvatar.innerHTML = `<div class="nav-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
         }
@@ -256,8 +170,8 @@ function updateAvatarDisplay() {
     
     const settingsAvatar = document.getElementById('current-avatar');
     if (settingsAvatar) {
-        if (avatar) {
-            settingsAvatar.src = avatar;
+        if (currentAvatar) {
+            settingsAvatar.src = currentAvatar;
             settingsAvatar.style.display = 'block';
         } else {
             settingsAvatar.style.display = 'none';
@@ -267,11 +181,12 @@ function updateAvatarDisplay() {
 
 function changeAvatar(e) {
     const file = e.target.files[0];
-    if (!file || !currentUser) return;
+    if (!file) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
-        saveAvatar(currentUser.userId, event.target.result);
+        currentAvatar = event.target.result;
+        localStorage.setItem(StorageKeys.AVATAR, currentAvatar);
         updateAvatarDisplay();
         loadFeed();
         alert('头像已更新');
@@ -280,8 +195,8 @@ function changeAvatar(e) {
 }
 
 function resetAvatar() {
-    if (!currentUser) return;
-    removeAvatar(currentUser.userId);
+    currentAvatar = DEFAULT_AVATAR;
+    localStorage.removeItem(StorageKeys.AVATAR);
     updateAvatarDisplay();
     loadFeed();
     alert('已恢复默认头像');
@@ -289,8 +204,6 @@ function resetAvatar() {
 
 function changeUsername(e) {
     e.preventDefault();
-    if (!currentUser) return;
-    
     const newUsername = document.getElementById('new-username').value.trim();
     const errorEl = document.getElementById('username-error');
     const successEl = document.getElementById('username-success');
@@ -309,7 +222,7 @@ function changeUsername(e) {
     }
     
     currentUser.username = newUsername;
-    saveUser(currentUser.userId, currentUser);
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
     
     document.getElementById('nav-username').textContent = newUsername;
     document.getElementById('settings-username').textContent = newUsername;
@@ -326,8 +239,6 @@ function changeUsername(e) {
 
 function changePassword(e) {
     e.preventDefault();
-    if (!currentUser) return;
-    
     const oldPassword = document.getElementById('old-password').value;
     const newPassword = document.getElementById('new-password').value;
     const confirmPassword = document.getElementById('confirm-new-password').value;
@@ -353,7 +264,7 @@ function changePassword(e) {
     }
     
     currentUser.password = hashPassword(newPassword);
-    saveUser(currentUser.userId, currentUser);
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
     
     successEl.textContent = '密码修改成功';
     document.getElementById('password-form').reset();
@@ -363,6 +274,7 @@ function changePassword(e) {
     }, 3000);
 }
 
+// 重置密码
 function openResetModal() {
     document.getElementById('reset-modal').classList.add('show');
     document.getElementById('reset-error').textContent = '';
@@ -401,16 +313,15 @@ function resetPassword(e) {
         return;
     }
     
-    const users = getAllUsers();
-    const userIds = Object.keys(users);
-    if (userIds.length === 0) {
+    const savedUser = localStorage.getItem(StorageKeys.USER);
+    if (!savedUser) {
         errorEl.textContent = '没有可重置的账号';
         return;
     }
     
-    const firstUserId = userIds[0];
-    users[firstUserId].password = hashPassword(newPassword);
-    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
+    const user = JSON.parse(savedUser);
+    user.password = hashPassword(newPassword);
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
     
     successEl.textContent = '密码重置成功，请使用新密码登录';
     
@@ -423,9 +334,20 @@ function resetPassword(e) {
 }
 
 // 好友系统
+function getAllUsers() {
+    const data = localStorage.getItem(StorageKeys.USERS);
+    return data ? JSON.parse(data) : {};
+}
+
+function saveUser(userId, userData) {
+    const users = getAllUsers();
+    users[userId] = userData;
+    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
+}
+
 function getFriends() {
     const data = localStorage.getItem(StorageKeys.FRIENDS);
-    return data ? JSON.parse(data) : {};
+    return data ? JSON.parse(data) : [];
 }
 
 function saveFriends(friends) {
@@ -454,8 +376,6 @@ function closeFriendModal(e) {
 
 function sendFriendRequest(e) {
     e.preventDefault();
-    if (!currentUser) return;
-    
     const friendId = document.getElementById('friend-id').value.trim();
     const message = document.getElementById('friend-message').value.trim();
     const errorEl = document.getElementById('friend-error');
@@ -476,8 +396,7 @@ function sendFriendRequest(e) {
     }
     
     const friends = getFriends();
-    const myFriends = friends[currentUser.userId] || [];
-    if (myFriends.includes(friendId)) {
+    if (friends.includes(friendId)) {
         errorEl.textContent = '已经是好友了';
         return;
     }
@@ -510,29 +429,15 @@ function sendFriendRequest(e) {
 }
 
 function acceptFriendRequest(requestId) {
-    if (!currentUser) return;
-    
     const requests = getFriendRequests();
     const request = requests.find(r => r.id === requestId);
     if (!request) return;
     
     const friends = getFriends();
-    
-    if (!friends[currentUser.userId]) {
-        friends[currentUser.userId] = [];
+    if (!friends.includes(request.from)) {
+        friends.push(request.from);
+        saveFriends(friends);
     }
-    if (!friends[currentUser.userId].includes(request.from)) {
-        friends[currentUser.userId].push(request.from);
-    }
-    
-    if (!friends[request.from]) {
-        friends[request.from] = [];
-    }
-    if (!friends[request.from].includes(currentUser.userId)) {
-        friends[request.from].push(currentUser.userId);
-    }
-    
-    saveFriends(friends);
     
     const newRequests = requests.filter(r => r.id !== requestId);
     saveFriendRequests(newRequests);
@@ -549,26 +454,14 @@ function rejectFriendRequest(requestId) {
 }
 
 function removeFriend(friendId) {
-    if (!currentUser) return;
     if (!confirm('确定要删除这个好友吗？')) return;
     
-    const friends = getFriends();
-    
-    if (friends[currentUser.userId]) {
-        friends[currentUser.userId] = friends[currentUser.userId].filter(id => id !== friendId);
-    }
-    
-    if (friends[friendId]) {
-        friends[friendId] = friends[friendId].filter(id => id !== currentUser.userId);
-    }
-    
+    const friends = getFriends().filter(id => id !== friendId);
     saveFriends(friends);
     loadFriends();
 }
 
 function loadFriends() {
-    if (!currentUser) return;
-    
     const friends = getFriends();
     const requests = getFriendRequests();
     const users = getAllUsers();
@@ -579,50 +472,43 @@ function loadFriends() {
     
     if (myRequests.length > 0) {
         requestsSection.style.display = 'block';
-        requestsList.innerHTML = myRequests.map(r => {
-            const avatar = getAvatar(r.from);
-            const avatarHtml = avatar 
-                ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-                : r.fromUsername.charAt(0).toUpperCase();
-            return `
-                <div class="friend-request-item">
-                    <div class="friend-avatar">${avatarHtml}</div>
-                    <div class="friend-info">
-                        <div class="friend-name">${escapeHtml(r.fromUsername)}</div>
-                        <div class="friend-id">${r.from}</div>
-                        <div class="friend-request-message">${escapeHtml(r.message)}</div>
-                    </div>
-                    <div class="friend-actions">
-                        <button class="friend-btn accept" onclick="acceptFriendRequest('${r.id}')">接受</button>
-                        <button class="friend-btn reject" onclick="rejectFriendRequest('${r.id}')">拒绝</button>
-                    </div>
+        requestsList.innerHTML = myRequests.map(r => `
+            <div class="friend-request-item">
+                <div class="friend-avatar">
+                    <div class="friend-avatar-text">${r.fromUsername.charAt(0).toUpperCase()}</div>
                 </div>
-            `;
-        }).join('');
+                <div class="friend-info">
+                    <div class="friend-name">${escapeHtml(r.fromUsername)}</div>
+                    <div class="friend-id">${r.from}</div>
+                    <div class="friend-request-message">${escapeHtml(r.message)}</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="friend-btn accept" onclick="acceptFriendRequest('${r.id}')">接受</button>
+                    <button class="friend-btn reject" onclick="rejectFriendRequest('${r.id}')">拒绝</button>
+                </div>
+            </div>
+        `).join('');
     } else {
         requestsSection.style.display = 'none';
     }
     
     const friendsList = document.getElementById('friends-list');
     const friendsEmpty = document.getElementById('friends-empty');
-    const myFriends = friends[currentUser.userId] || [];
     
-    if (myFriends.length === 0) {
+    if (friends.length === 0) {
         friendsList.innerHTML = '';
         friendsEmpty.style.display = 'block';
         return;
     }
     
     friendsEmpty.style.display = 'none';
-    friendsList.innerHTML = myFriends.map(friendId => {
+    friendsList.innerHTML = friends.map(friendId => {
         const user = users[friendId] || { username: '未知用户' };
-        const avatar = getAvatar(friendId);
-        const avatarHtml = avatar 
-            ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
-            : user.username.charAt(0).toUpperCase();
         return `
             <div class="friend-item">
-                <div class="friend-avatar">${avatarHtml}</div>
+                <div class="friend-avatar">
+                    <div class="friend-avatar-text">${user.username.charAt(0).toUpperCase()}</div>
+                </div>
                 <div class="friend-info">
                     <div class="friend-name">${escapeHtml(user.username)}</div>
                     <div class="friend-id">${friendId}</div>
@@ -711,7 +597,6 @@ function handleAuth(e) {
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
-        // 注册新账号
         if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
         if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
         
@@ -722,32 +607,20 @@ function handleAuth(e) {
             password: hashPassword(password), 
             createdAt: new Date().toISOString() 
         };
+        localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
+        saveUser(userId, { username, createdAt: user.createdAt });
         
-        saveUser(userId, user);
-        setCurrentUser(userId);
         currentUser = user;
-        
+        loadAvatar();
         showMainScreen();
     } else {
-        // 登录现有账号
-        const users = getAllUsers();
-        const userIds = Object.keys(users);
-        
-        // 查找匹配的用户名
-        const matchedUserId = userIds.find(id => users[id].username === username);
-        if (!matchedUserId) {
-            errorEl.textContent = '账号不存在';
-            return;
-        }
-        
-        const user = users[matchedUserId];
-        if (user.password !== hashPassword(password)) {
-            errorEl.textContent = '密码错误';
-            return;
-        }
-        
-        setCurrentUser(matchedUserId);
+        const savedUser = localStorage.getItem(StorageKeys.USER);
+        if (!savedUser) { errorEl.textContent = '账号不存在'; return; }
+        const user = JSON.parse(savedUser);
+        if (user.username !== username) { errorEl.textContent = '名称不正确'; return; }
+        if (user.password !== hashPassword(password)) { errorEl.textContent = '密码错误'; return; }
         currentUser = user;
+        loadAvatar();
         showMainScreen();
     }
 }
@@ -767,10 +640,10 @@ function showMainScreen() {
     document.getElementById('main-screen').style.display = 'flex';
     
     document.getElementById('nav-username').textContent = currentUser.username;
-    document.getElementById('nav-userid').textContent = currentUser.userId;
+    document.getElementById('nav-userid').textContent = currentUser.userId || 'NYS-Kn000';
     
     document.getElementById('settings-username').textContent = currentUser.username;
-    document.getElementById('settings-userid').textContent = currentUser.userId;
+    document.getElementById('settings-userid').textContent = currentUser.userId || 'NYS-Kn000';
     document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
     
     updateAvatarDisplay();
@@ -778,30 +651,12 @@ function showMainScreen() {
     loadFriends();
 }
 
-function showAuthScreen() {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('main-screen').style.display = 'none';
-    loadAccountList();
-}
-
 function logout() {
     if (confirm('确定要退出吗？')) {
-        setCurrentUser(null);
         currentUser = null;
-        showAuthScreen();
+        document.getElementById('auth-screen').style.display = 'flex';
+        document.getElementById('main-screen').style.display = 'none';
         document.getElementById('auth-form').reset();
-    }
-}
-
-function switchAccount() {
-    if (confirm('确定要切换账号吗？')) {
-        setCurrentUser(null);
-        currentUser = null;
-        showAuthScreen();
-        document.getElementById('auth-form').reset();
-        if (!isLoginMode) {
-            toggleAuthMode();
-        }
     }
 }
 
@@ -825,8 +680,6 @@ function loadData() {
 }
 
 function loadFeed() {
-    if (!currentUser) return;
-    
     const allItems = [
         ...getLifeRecords().map(r => ({ ...r, type: 'life' })),
         ...getWorks().map(w => ({ ...w, type: 'work' }))
@@ -850,9 +703,8 @@ function createFeedItem(item) {
     const typeName = item.type === 'life' ? '生活' : '作品';
     const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
     
-    const avatar = getAvatar(currentUser.userId);
-    const avatarHtml = avatar 
-        ? `<img src="${avatar}" alt="avatar">`
+    const avatarHtml = currentAvatar 
+        ? `<img src="${currentAvatar}" alt="avatar">`
         : `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
     
     let fileHtml = '';
