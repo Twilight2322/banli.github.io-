@@ -4,7 +4,8 @@ const StorageKeys = {
     LIFE: 'site_life',
     WORKS: 'site_works',
     THEME: 'site_theme',
-    AVATAR: 'site_avatar'
+    AVATAR: 'site_avatar',
+    USER_COUNT: 'site_user_count'
 };
 
 // 主题配置
@@ -41,7 +42,23 @@ const Themes = {
     'gz14': { name: '广州14号线', color: '#792720' },
 };
 
-const DEFAULT_AVATAR = 'assets/default-avatar.png';
+// Emoji 列表
+const Emojis = [
+    '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😜', '🤪', '🤔',
+    '😎', '🥳', '😢', '😭', '😤', '😡', '🥺', '😴', '🤯', '🥶',
+    '👍', '👎', '👏', '🙌', '🙏', '💪', '🤝', '✌️', '🤞', '👌',
+    '❤️', '💔', '💕', '💖', '💗', '💯', '✨', '🔥', '🎉', '🎊',
+    '🌟', '⭐', '☀️', '🌙', '☁️', '🌈', '🌸', '🌺', '🍀', '🌿',
+    '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍑', '🥭', '🍍', '🥝',
+    '🍔', '🍟', '🍕', '🌮', '🍜', '🍝', '🍣', '🍱', '🥟', '🍦',
+    '🍰', '🎂', '🍭', '🍬', '🍫', '🍿', '☕', '🍵', '🧃', '🍺',
+    '📷', '📸', '🎨', '🎭', '🎪', '🎢', '🎡', '🎠', '🎮', '🎲',
+    '✈️', '🚗', '🚕', '🚙', '🚌', '🚇', '🚄', '🚲', '🏍️', '🚀',
+    '🏠', '🏡', '🏫', '🏢', '🏥', '🏦', '🏨', '🏪', '⛪',
+    '🌊', '🏖️', '🏝️', '🏔️', '⛰️', '🌋', '🏜️', '🏞️', '🌅', '🌄'
+];
+
+const DEFAULT_AVATAR = '';
 
 let currentUser = null;
 let isLoginMode = false;
@@ -53,7 +70,16 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     setupEventListeners();
     loadTheme();
+    initEmojiPicker();
 });
+
+// 生成用户ID：NYS-Kn001 格式
+function generateUserId() {
+    let count = parseInt(localStorage.getItem(StorageKeys.USER_COUNT) || '0');
+    count++;
+    localStorage.setItem(StorageKeys.USER_COUNT, count.toString());
+    return 'NYS-Kn' + count.toString().padStart(3, '0');
+}
 
 function checkAuth() {
     const savedUser = localStorage.getItem(StorageKeys.USER);
@@ -80,6 +106,25 @@ function setupEventListeners() {
     });
 }
 
+// Emoji 选择器
+function initEmojiPicker() {
+    const picker = document.getElementById('emoji-picker');
+    if (!picker) return;
+    picker.innerHTML = Emojis.map(e => 
+        `<span class="emoji-item" onclick="insertEmoji('${e}')">${e}</span>`
+    ).join('');
+}
+
+function insertEmoji(emoji) {
+    const textarea = document.getElementById('item-content');
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    textarea.value = text.substring(0, start) + emoji + text.substring(end);
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+}
+
 // 头像管理
 function loadAvatar() {
     const saved = localStorage.getItem(StorageKeys.AVATAR);
@@ -88,8 +133,24 @@ function loadAvatar() {
 }
 
 function updateAvatarDisplay() {
+    const navAvatar = document.getElementById('nav-avatar');
+    if (navAvatar) {
+        if (currentAvatar) {
+            navAvatar.innerHTML = `<img src="${currentAvatar}" alt="avatar">`;
+        } else {
+            navAvatar.innerHTML = `<div class="nav-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
+        }
+    }
+    
     const settingsAvatar = document.getElementById('current-avatar');
-    if (settingsAvatar) settingsAvatar.src = currentAvatar;
+    if (settingsAvatar) {
+        if (currentAvatar) {
+            settingsAvatar.src = currentAvatar;
+            settingsAvatar.style.display = 'block';
+        } else {
+            settingsAvatar.style.display = 'none';
+        }
+    }
 }
 
 function changeAvatar(e) {
@@ -113,6 +174,37 @@ function resetAvatar() {
     updateAvatarDisplay();
     loadFeed();
     alert('已恢复默认头像');
+}
+
+// 修改用户名
+function changeUsername(e) {
+    e.preventDefault();
+    const newUsername = document.getElementById('new-username').value.trim();
+    const errorEl = document.getElementById('username-error');
+    const successEl = document.getElementById('username-success');
+    
+    errorEl.textContent = '';
+    successEl.textContent = '';
+    
+    if (newUsername.length < 2) {
+        errorEl.textContent = '用户名至少2个字符';
+        return;
+    }
+    
+    currentUser.username = newUsername;
+    localStorage.setItem(StorageKeys.USER, JSON.stringify(currentUser));
+    
+    document.getElementById('nav-username').textContent = newUsername;
+    document.getElementById('settings-username').textContent = newUsername;
+    updateAvatarDisplay();
+    loadFeed();
+    
+    successEl.textContent = '用户名修改成功';
+    document.getElementById('username-form').reset();
+    
+    setTimeout(() => {
+        successEl.textContent = '';
+    }, 3000);
 }
 
 // 修改密码
@@ -180,7 +272,7 @@ function renderThemeGrid(containerId, themeKeys) {
     container.innerHTML = themeKeys.map(key => {
         const theme = Themes[key];
         const selected = key === currentTheme ? 'selected' : '';
-        return `<div class="theme-item ${selected}" style="background:${theme.color}" onclick="selectTheme('${key}')" title="${theme.name}">${theme.name.replace('号线', '')}</div>`;
+        return `<div class="theme-item ${selected}" style="background:${theme.color}" onclick="selectTheme('${key}')" title="${theme.name}"></div>`;
     }).join('');
 }
 
@@ -234,7 +326,13 @@ function handleAuth(e) {
         if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
         if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
         
-        const user = { username, password: hashPassword(password), createdAt: new Date().toISOString() };
+        const userId = generateUserId();
+        const user = { 
+            username, 
+            userId,
+            password: hashPassword(password), 
+            createdAt: new Date().toISOString() 
+        };
         localStorage.setItem(StorageKeys.USER, JSON.stringify(user));
         currentUser = user;
         loadAvatar();
@@ -265,11 +363,15 @@ function hashPassword(password) {
 function showMainScreen() {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('main-screen').style.display = 'flex';
+    
     document.getElementById('nav-username').textContent = currentUser.username;
+    document.getElementById('nav-userid').textContent = currentUser.userId || 'NYS-Kn000';
     
     document.getElementById('settings-username').textContent = currentUser.username;
+    document.getElementById('settings-userid').textContent = currentUser.userId || 'NYS-Kn000';
     document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
     
+    updateAvatarDisplay();
     loadData();
 }
 
@@ -327,9 +429,9 @@ function createFeedItem(item) {
     const imageHtml = item.image ? `<div class="feed-image"><img src="${item.image}" alt=""></div>` : '';
     const tags = item.tags ? item.tags.map(t => `<span class="feed-tag">#${t}</span>`).join('') : '';
     
-    const avatarHtml = currentAvatar === DEFAULT_AVATAR 
-        ? `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`
-        : `<img src="${currentAvatar}" alt="avatar">`;
+    const avatarHtml = currentAvatar 
+        ? `<img src="${currentAvatar}" alt="avatar">`
+        : `<div class="feed-avatar-text">${currentUser.username.charAt(0).toUpperCase()}</div>`;
     
     return `
         <div class="feed-item">
@@ -337,6 +439,7 @@ function createFeedItem(item) {
                 <div class="feed-avatar">${avatarHtml}</div>
                 <div class="feed-info">
                     <div class="feed-author">${escapeHtml(currentUser.username)}</div>
+                    <div class="feed-user-id">${currentUser.userId || ''}</div>
                     <div class="feed-time">${date}</div>
                 </div>
                 <span class="feed-type ${item.type}">${typeName}</span>
