@@ -60,7 +60,7 @@ const Emojis = [
 
 const MAX_USERNAME_LENGTH = 12;
 const ADMIN_CODE = 'wknwknwkn';
-const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB 限制
+const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB 限制，防止 localStorage 溢出
 
 let currentUser = null;
 let isLoginMode = false;
@@ -731,28 +731,46 @@ function switchPage(pageName) {
     if (pageName === 'friends') loadFriends();
 }
 
-// ==================== 数据管理 ====================
+// ==================== 数据管理（带错误处理） ====================
 
 function getLife() {
     try {
         const data = localStorage.getItem(StorageKeys.LIFE);
         return data ? JSON.parse(data) : {};
-    } catch(e) { return {}; }
+    } catch(e) { 
+        console.error('读取生活记录失败:', e);
+        return {}; 
+    }
 }
 
 function saveLife(life) {
-    localStorage.setItem(StorageKeys.LIFE, JSON.stringify(life));
+    try {
+        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(life));
+        return true;
+    } catch(e) {
+        alert('保存失败：存储空间不足！\n\n解决方法：\n1. 删除一些旧内容\n2. 清除浏览器数据（Ctrl+Shift+Delete）\n3. 不要上传大文件');
+        return false;
+    }
 }
 
 function getWorks() {
     try {
         const data = localStorage.getItem(StorageKeys.WORKS);
         return data ? JSON.parse(data) : {};
-    } catch(e) { return {}; }
+    } catch(e) { 
+        console.error('读取作品失败:', e);
+        return {}; 
+    }
 }
 
 function saveWorks(works) {
-    localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+    try {
+        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+        return true;
+    } catch(e) {
+        alert('保存失败：存储空间不足！\n\n解决方法：\n1. 删除一些旧内容\n2. 清除浏览器数据（Ctrl+Shift+Delete）\n3. 不要上传大文件');
+        return false;
+    }
 }
 
 // ==================== 文件预览（支持 PDF） ====================
@@ -763,7 +781,7 @@ function previewFile(e) {
     
     // 检查文件大小
     if (file.size > MAX_FILE_SIZE) {
-        alert('文件太大，最大支持 ' + formatFileSize(MAX_FILE_SIZE));
+        alert('文件太大，最大支持 ' + formatFileSize(MAX_FILE_SIZE) + '\n请压缩后再上传');
         e.target.value = '';
         return;
     }
@@ -781,13 +799,11 @@ function previewFile(e) {
         };
         reader.readAsDataURL(file);
     } else if (file.type === 'application/pdf') {
-        // PDF 用 Object URL 即时预览
         const fileURL = URL.createObjectURL(file);
         preview.innerHTML = 
             '<embed src="' + fileURL + '" type="application/pdf" width="100%" height="400px" style="border-radius:8px;">' +
             '<p style="margin-top:8px;color:#666;font-size:13px;">📄 ' + escapeHtml(file.name) + ' (' + formatFileSize(file.size) + ')</p>';
         
-        // 同时读取为 base64 保存
         const reader = new FileReader();
         reader.onload = function(ev) {
             tempImageData = ev.target.result;
@@ -805,7 +821,7 @@ function previewFile(e) {
     }
 }
 
-// ==================== 内容加载（带文件显示） ====================
+// ==================== 文件显示 ====================
 
 function getFileHtml(item) {
     if (!item.fileData) return '';
@@ -832,7 +848,11 @@ function getFileHtml(item) {
     return '';
 }
 
+// ==================== 内容加载 ====================
+
 function loadFeed() {
+    if (!currentUser) return;
+    
     const life = getLife();
     const works = getWorks();
     const myLife = life[currentUser.userId] || [];
@@ -852,12 +872,14 @@ function loadFeed() {
     const feedList = document.getElementById('feed-list');
     const feedEmpty = document.getElementById('feed-empty');
 
+    if (!feedList) return;
+
     if (all.length === 0) {
         feedList.innerHTML = '';
-        feedEmpty.style.display = 'block';
+        if (feedEmpty) feedEmpty.style.display = 'block';
         return;
     }
-    feedEmpty.style.display = 'none';
+    if (feedEmpty) feedEmpty.style.display = 'none';
 
     let html = '';
     for (let i = 0; i < all.length; i++) {
@@ -875,17 +897,22 @@ function loadFeed() {
 }
 
 function loadLife() {
+    if (!currentUser) return;
+    
     const life = getLife();
     const myLife = life[currentUser.userId] || [];
     const list = document.getElementById('life-list');
     const empty = document.getElementById('life-empty');
 
+    if (!list) return;
+
     if (myLife.length === 0) {
         list.innerHTML = '';
-        empty.style.display = 'block';
+        if (empty) empty.style.display = 'block';
         return;
     }
-    empty.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    
     let html = '';
     for (let i = 0; i < myLife.length; i++) {
         const item = myLife[i];
@@ -904,17 +931,22 @@ function loadLife() {
 }
 
 function loadWorks() {
+    if (!currentUser) return;
+    
     const works = getWorks();
     const myWorks = works[currentUser.userId] || [];
     const list = document.getElementById('works-list');
     const empty = document.getElementById('works-empty');
 
+    if (!list) return;
+
     if (myWorks.length === 0) {
         list.innerHTML = '';
-        empty.style.display = 'block';
+        if (empty) empty.style.display = 'block';
         return;
     }
-    empty.style.display = 'none';
+    if (empty) empty.style.display = 'none';
+    
     let html = '';
     for (let i = 0; i < myWorks.length; i++) {
         const item = myWorks[i];
@@ -940,6 +972,8 @@ function openModal(type, itemId) {
     const typeInput = document.getElementById('item-type');
     const idInput = document.getElementById('item-id');
 
+    if (!modal) return;
+
     typeInput.value = type;
     idInput.value = itemId || '';
 
@@ -954,7 +988,9 @@ function openModal(type, itemId) {
     tempFileName = null;
     tempFileType = null;
     tempFileSize = null;
-    document.getElementById('image-preview').innerHTML = '';
+    
+    const previewEl = document.getElementById('image-preview');
+    if (previewEl) previewEl.innerHTML = '';
 
     if (itemId) {
         const data = type === 'life' ? getLife() : getWorks();
@@ -966,19 +1002,19 @@ function openModal(type, itemId) {
                 document.getElementById('item-date').value = items[i].date;
                 document.getElementById('item-tags').value = items[i].tags || '';
                 
-                // 恢复文件显示
                 if (items[i].fileData) {
                     tempImageData = items[i].fileData;
                     tempFileName = items[i].fileName;
                     tempFileType = items[i].fileType;
                     tempFileSize = items[i].fileSize;
                     
-                    const preview = document.getElementById('image-preview');
-                    if (items[i].fileType === 'application/pdf') {
-                        preview.innerHTML = '<p style="padding:10px;background:rgba(0,0,0,0.05);border-radius:8px;">📄 已上传：' + 
-                            escapeHtml(items[i].fileName) + ' (' + formatFileSize(items[i].fileSize || 0) + ')</p>';
-                    } else if (items[i].fileType && items[i].fileType.startsWith('image/')) {
-                        preview.innerHTML = '<img src="' + items[i].fileData + '" style="max-width:100%;border-radius:8px;">';
+                    if (previewEl) {
+                        if (items[i].fileType === 'application/pdf') {
+                            previewEl.innerHTML = '<p style="padding:10px;background:rgba(0,0,0,0.05);border-radius:8px;">📄 已上传：' + 
+                                escapeHtml(items[i].fileName) + ' (' + formatFileSize(items[i].fileSize || 0) + ')</p>';
+                        } else if (items[i].fileType && items[i].fileType.startsWith('image/')) {
+                            previewEl.innerHTML = '<img src="' + items[i].fileData + '" style="max-width:100%;border-radius:8px;">';
+                        }
                     }
                 }
                 break;
@@ -994,8 +1030,8 @@ function openModal(type, itemId) {
 
 function closeModal(e) {
     if (e && e.target !== document.getElementById('modal')) return;
-    document.getElementById('modal').classList.remove('show');
-    // 清空临时数据
+    const modal = document.getElementById('modal');
+    if (modal) modal.classList.remove('show');
     tempImageData = null;
     tempFileName = null;
     tempFileType = null;
@@ -1004,6 +1040,11 @@ function closeModal(e) {
 
 function saveItem(e) {
     e.preventDefault();
+    if (!currentUser) {
+        alert('请先登录');
+        return;
+    }
+    
     const type = document.getElementById('item-type').value;
     const itemId = document.getElementById('item-id').value;
     const title = document.getElementById('item-title').value.trim();
@@ -1012,7 +1053,7 @@ function saveItem(e) {
     const tags = document.getElementById('item-tags').value.trim();
 
     if (!title || !content || !date) {
-        alert('请填写完整信息');
+        alert('请填写完整信息（标题、内容、日期）');
         return;
     }
 
@@ -1033,13 +1074,14 @@ function saveItem(e) {
         item.fileSize = tempFileSize;
     }
 
+    let saved = false;
+    
     if (type === 'life') {
         const life = getLife();
         if (!life[currentUser.userId]) life[currentUser.userId] = [];
         if (itemId) {
             for (let i = 0; i < life[currentUser.userId].length; i++) {
                 if (life[currentUser.userId][i].id === itemId) {
-                    // 保留原有文件数据（如果没有新上传）
                     if (!tempImageData && life[currentUser.userId][i].fileData) {
                         item.fileData = life[currentUser.userId][i].fileData;
                         item.fileName = life[currentUser.userId][i].fileName;
@@ -1053,15 +1095,13 @@ function saveItem(e) {
         } else {
             life[currentUser.userId].push(item);
         }
-        saveLife(life);
-        loadLife();
+        saved = saveLife(life);
     } else {
         const works = getWorks();
         if (!works[currentUser.userId]) works[currentUser.userId] = [];
         if (itemId) {
             for (let i = 0; i < works[currentUser.userId].length; i++) {
                 if (works[currentUser.userId][i].id === itemId) {
-                    // 保留原有文件数据（如果没有新上传）
                     if (!tempImageData && works[currentUser.userId][i].fileData) {
                         item.fileData = works[currentUser.userId][i].fileData;
                         item.fileName = works[currentUser.userId][i].fileName;
@@ -1075,20 +1115,19 @@ function saveItem(e) {
         } else {
             works[currentUser.userId].push(item);
         }
-        saveWorks(works);
-        loadWorks();
+        saved = saveWorks(works);
     }
 
-    closeModal();
+    if (saved) {
         closeModal();
-    // 强制刷新所有列表
-    setTimeout(function() {
-        loadFeed();
-        loadLife();
-        loadWorks();
-    }, 100);
-}
-
+        // 强制刷新所有列表
+        setTimeout(function() {
+            loadFeed();
+            loadLife();
+            loadWorks();
+        }, 50);
+        alert('保存成功！');
+    }
 }
 
 function editItem(type, itemId) {
@@ -1096,6 +1135,7 @@ function editItem(type, itemId) {
 }
 
 function deleteItem(type, itemId) {
+    if (!currentUser) return;
     if (!confirm('确定要删除吗？')) return;
 
     if (type === 'life') {
@@ -1105,7 +1145,6 @@ function deleteItem(type, itemId) {
                 return item.id !== itemId;
             });
             saveLife(life);
-            loadLife();
         }
     } else {
         const works = getWorks();
@@ -1114,10 +1153,12 @@ function deleteItem(type, itemId) {
                 return item.id !== itemId;
             });
             saveWorks(works);
-            loadWorks();
         }
     }
+    
     loadFeed();
+    loadLife();
+    loadWorks();
 }
 
 // ==================== 好友系统 ====================
@@ -1149,14 +1190,18 @@ function saveFriendRequests(requests) {
 }
 
 function openAddFriendModal() {
-    document.getElementById('friend-modal').classList.add('show');
-    document.getElementById('friend-error').textContent = '';
-    document.getElementById('friend-success').textContent = '';
+    const modal = document.getElementById('friend-modal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('friend-error').textContent = '';
+        document.getElementById('friend-success').textContent = '';
+    }
 }
 
 function closeFriendModal(e) {
     if (e && e.target !== document.getElementById('friend-modal')) return;
-    document.getElementById('friend-modal').classList.remove('show');
+    const modal = document.getElementById('friend-modal');
+    if (modal) modal.classList.remove('show');
 }
 
 function sendFriendRequest(e) {
@@ -1297,48 +1342,55 @@ function loadFriends() {
     
     const requestsSection = document.getElementById('friend-requests-section');
     const requestsList = document.getElementById('friend-requests-list');
-    const myRequests = requests.filter(function(r) {
-        return r.to === currentUser.userId;
-    });
     
-    if (myRequests.length > 0) {
-        requestsSection.style.display = 'block';
-        let html = '';
-        for (let i = 0; i < myRequests.length; i++) {
-            const r = myRequests[i];
-            const avatar = getAvatar(r.from);
-            const avatarHtml = avatar 
-                ? '<img src="' + avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
-                : r.fromUsername.charAt(0).toUpperCase();
-            html += '<div class="friend-request-item">' +
-                '<div class="friend-avatar">' + avatarHtml + '</div>' +
-                '<div class="friend-info">' +
-                    '<div class="friend-name">' + escapeHtml(r.fromUsername) + '</div>' +
-                    '<div class="friend-id">' + r.from + '</div>' +
-                    '<div class="friend-request-message">' + escapeHtml(r.message) + '</div>' +
-                '</div>' +
-                '<div class="friend-actions">' +
-                    '<button class="friend-btn accept" onclick="acceptFriendRequest(\'' + r.id + '\')">接受</button>' +
-                    '<button class="friend-btn reject" onclick="rejectFriendRequest(\'' + r.id + '\')">拒绝</button>' +
-                '</div>' +
-            '</div>';
+    if (requestsSection && requestsList) {
+        const myRequests = requests.filter(function(r) {
+            return r.to === currentUser.userId;
+        });
+        
+        if (myRequests.length > 0) {
+            requestsSection.style.display = 'block';
+            let html = '';
+            for (let i = 0; i < myRequests.length; i++) {
+                const r = myRequests[i];
+                const avatar = getAvatar(r.from);
+                const avatarHtml = avatar 
+                    ? '<img src="' + avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+                    : r.fromUsername.charAt(0).toUpperCase();
+                html += '<div class="friend-request-item">' +
+                    '<div class="friend-avatar">' + avatarHtml + '</div>' +
+                    '<div class="friend-info">' +
+                        '<div class="friend-name">' + escapeHtml(r.fromUsername) + '</div>' +
+                        '<div class="friend-id">' + r.from + '</div>' +
+                        '<div class="friend-request-message">' + escapeHtml(r.message) + '</div>' +
+                    '</div>' +
+                    '<div class="friend-actions">' +
+                        '<button class="friend-btn accept" onclick="acceptFriendRequest(\'' + r.id + '\')">接受</button>' +
+                        '<button class="friend-btn reject" onclick="rejectFriendRequest(\'' + r.id + '\')">拒绝</button>' +
+                    '</div>' +
+                '</div>';
+            }
+            requestsList.innerHTML = html;
+        } else {
+            requestsSection.style.display = 'none';
         }
-        requestsList.innerHTML = html;
-    } else {
-        requestsSection.style.display = 'none';
     }
     
     const friendsList = document.getElementById('friends-list');
     const friendsEmpty = document.getElementById('friends-empty');
+    
+    if (!friendsList) return;
+    
     const myFriends = friends[currentUser.userId] || [];
     
     if (myFriends.length === 0) {
         friendsList.innerHTML = '';
-        friendsEmpty.style.display = 'block';
+        if (friendsEmpty) friendsEmpty.style.display = 'block';
         return;
     }
     
-    friendsEmpty.style.display = 'none';
+    if (friendsEmpty) friendsEmpty.style.display = 'none';
+    
     let html = '';
     for (let i = 0; i < myFriends.length; i++) {
         const friendId = myFriends[i];
@@ -1364,13 +1416,16 @@ function loadFriends() {
 // ==================== 分享 ====================
 
 function copyShareLink() {
-    const url = document.getElementById('share-url').textContent;
-    navigator.clipboard.writeText(url).then(function() {
+    const urlEl = document.getElementById('share-url');
+    if (!urlEl) return;
+    navigator.clipboard.writeText(urlEl.textContent).then(function() {
         alert('链接已复制');
     });
 }
 
 function closeShareModal(e) {
     if (e && e.target !== document.getElementById('share-modal')) return;
-    document.getElementById('share-modal').classList.remove('show');
+    const modal = document.getElementById('share-modal');
+    if (modal) modal.classList.remove('show');
 }
+
