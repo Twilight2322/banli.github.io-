@@ -856,4 +856,591 @@ function handleAuth(e) {
         const user = users[username];
         
         if (!user) {
-            errorEl.textContent =
+            errorEl.textContent = '用户ID不存在';
+            return;
+        }
+        
+        if (user.password !== hashPassword(password)) {
+            errorEl.textContent = '密码错误';
+            return;
+        }
+        
+        setCurrentUser(username);
+        currentUser = user;
+        showMainScreen();
+    }
+}
+
+function hashPassword(password) {
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+        const char = password.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString();
+}
+
+function showMainScreen() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('main-screen').style.display = 'flex';
+    
+    document.getElementById('nav-username').textContent = currentUser.username;
+    document.getElementById('nav-userid').textContent = currentUser.userId;
+    
+    document.getElementById('settings-username').textContent = currentUser.username;
+    document.getElementById('settings-userid').textContent = currentUser.userId;
+    document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
+    
+    updateAvatarDisplay();
+    loadData();
+    loadFriends();
+}
+
+function showAuthScreen() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('main-screen').style.display = 'none';
+    loadAccountList();
+}
+
+function logout() {
+    if (confirm('确定要退出吗？')) {
+        setCurrentUser(null);
+        currentUser = null;
+        showAuthScreen();
+        document.getElementById('auth-form').reset();
+    }
+}
+
+function switchAccount() {
+    if (confirm('确定要切换账号吗？')) {
+        setCurrentUser(null);
+        currentUser = null;
+        showAuthScreen();
+        document.getElementById('auth-form').reset();
+        if (!isLoginMode) {
+            toggleAuthMode();
+        }
+    }
+}
+
+function switchPage(pageName) {
+    const navLinks = document.querySelectorAll('.nav-link');
+    for (let i = 0; i < navLinks.length; i++) {
+        if (navLinks[i].dataset.page === pageName) {
+            navLinks[i].classList.add('active');
+        } else {
+            navLinks[i].classList.remove('active');
+        }
+    }
+    
+    const pages = document.querySelectorAll('.page');
+    for (let i = 0; i < pages.length; i++) {
+        if (pages[i].id === 'page-' + pageName) {
+            pages[i].classList.add('active');
+        } else {
+            pages[i].classList.remove('active');
+        }
+    }
+    
+    if (pageName === 'friends') {
+        loadFriends();
+    }
+}
+
+function loadData() {
+    loadFeed();
+    loadLifeRecords();
+    loadWorks();
+}
+
+function loadFeed() {
+    if (!currentUser) return;
+    
+    const lifeRecords = getLifeRecords();
+    const works = getWorks();
+    
+    const allItems = [];
+    for (let i = 0; i < lifeRecords.length; i++) {
+        allItems.push(Object.assign({}, lifeRecords[i], { type: 'life' }));
+    }
+    for (let i = 0; i < works.length; i++) {
+        allItems.push(Object.assign({}, works[i], { type: 'work' }));
+    }
+    
+    allItems.sort(function(a, b) {
+        return new Date(b.date) - new Date(a.date);
+    });
+    
+    const items = allItems.slice(0, 20);
+    
+    const container = document.getElementById('feed-list');
+    const emptyState = document.getElementById('feed-empty');
+    
+    if (items.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    let html = '';
+    for (let i = 0; i < items.length; i++) {
+        html += createFeedItem(items[i]);
+    }
+    container.innerHTML = html;
+}
+
+function createFeedItem(item) {
+    const date = new Date(item.date).toLocaleDateString('zh-CN');
+    const typeName = item.type === 'life' ? '生活' : '作品';
+    
+    let tagsHtml = '';
+    if (item.tags && item.tags.length > 0) {
+        tagsHtml = '<div class="feed-tags">';
+        for (let i = 0; i < item.tags.length; i++) {
+            tagsHtml += '<span class="feed-tag">#' + escapeHtml(item.tags[i]) + '</span>';
+        }
+        tagsHtml += '</div>';
+    }
+    
+    const avatar = getAvatar(currentUser.userId);
+    const avatarHtml = avatar 
+        ? '<img src="' + avatar + '" alt="avatar">'
+        : '<div class="feed-avatar-text">' + currentUser.username.charAt(0).toUpperCase() + '</div>';
+    
+    let fileHtml = '';
+    if (item.image) {
+        if (item.fileType && item.fileType.indexOf('image/') === 0) {
+            fileHtml = '<div class="feed-image" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')"><img src="' + item.image + '" alt=""></div>';
+        } else {
+            const icon = getFileIcon(item.fileName || '');
+            fileHtml = '<div class="feed-file" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')">' +
+                '<span class="feed-file-icon">' + icon + '</span>' +
+                '<span class="feed-file-name">' + escapeHtml(item.fileName || '附件') + ' (' + (item.fileSize || '') + ')</span>' +
+                '<span style="margin-left:auto;color:var(--text-muted);font-size:12px;">点击打开</span>' +
+            '</div>';
+        }
+    }
+    
+    return '<div class="feed-item">' +
+        '<div class="feed-header">' +
+            '<div class="feed-avatar">' + avatarHtml + '</div>' +
+            '<div class="feed-info">' +
+                '<div class="feed-author">' + escapeHtml(currentUser.username) + '</div>' +
+                '<div class="feed-user-id">' + (currentUser.userId || '') + '</div>' +
+                '<div class="feed-time">' + date + '</div>' +
+            '</div>' +
+            '<span class="feed-type ' + item.type + '">' + typeName + '</span>' +
+        '</div>' +
+        '<div class="feed-content">' +
+            '<div class="feed-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="feed-text">' + escapeHtml(item.content) + '</div>' +
+            fileHtml +
+            tagsHtml +
+        '</div>' +
+        '<div class="feed-actions">' +
+            '<button class="feed-action" onclick="shareToWeChat(\'' + item.id + '\', \'' + item.type + '\')">📤 分享到微信</button>' +
+            '<button class="feed-action" onclick="editItem(\'' + item.type + '\', \'' + item.id + '\')">✏️ 编辑</button>' +
+            '<button class="feed-action delete" onclick="deleteItem(\'' + item.type + '\', \'' + item.id + '\')">🗑️ 删除</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function openFile(itemId, type) {
+    const items = type === 'life' ? getLifeRecords() : getWorks();
+    let item = null;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].id === itemId) {
+            item = items[i];
+            break;
+        }
+    }
+    if (!item || !item.image) return;
+    
+    // 创建新窗口打开文件
+    const newWindow = window.open('', '_blank');
+    if (!newWindow) {
+        alert('请允许弹出窗口以打开文件');
+        return;
+    }
+    
+    if (item.fileType && item.fileType.indexOf('image/') === 0) {
+        // 图片直接显示
+        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '图片') + '</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;"><img src="' + item.image + '" style="max-width:100%;max-height:100vh;" onclick="window.close()"></body></html>');
+    } else if (item.fileType === 'application/pdf') {
+        // PDF 使用浏览器内置查看器
+        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || 'PDF') + '</title></head><body style="margin:0;"><embed src="' + item.image + '" type="application/pdf" width="100%" height="100%" style="min-height:100vh;"></body></html>');
+    } else {
+        // 其他文件提供下载
+        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '文件') + '</title></head><body style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:sans-serif;"><div style="text-align:center;"><p>文件无法直接预览</p><a href="' + item.image + '" download="' + escapeHtml(item.fileName || 'file') + '" style="padding:10px 20px;background:#0066cc;color:#fff;text-decoration:none;border-radius:4px;">下载文件</a></div></body></html>');
+    }
+    newWindow.document.close();
+}
+
+function loadLifeRecords() {
+    const records = getLifeRecords();
+    const container = document.getElementById('life-list');
+    const emptyState = document.getElementById('life-empty');
+    
+    if (records.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    let html = '';
+    for (let i = 0; i < records.length; i++) {
+        html += createCard(records[i], 'life');
+    }
+    container.innerHTML = html;
+}
+
+function loadWorks() {
+    const works = getWorks();
+    const container = document.getElementById('works-list');
+    const emptyState = document.getElementById('works-empty');
+    
+    if (works.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    let html = '';
+    for (let i = 0; i < works.length; i++) {
+        html += createCard(works[i], 'work');
+    }
+    container.innerHTML = html;
+}
+
+function createCard(item, type) {
+    const date = new Date(item.date).toLocaleDateString('zh-CN');
+    
+    let tagsHtml = '';
+    if (item.tags && item.tags.length > 0) {
+        tagsHtml = '<div class="card-tags">';
+        for (let i = 0; i < item.tags.length; i++) {
+            tagsHtml += '<span class="tag">' + escapeHtml(item.tags[i]) + '</span>';
+        }
+        tagsHtml += '</div>';
+    }
+    
+    let fileHtml = '';
+    if (item.image) {
+        if (item.fileType && item.fileType.indexOf('image/') === 0) {
+            fileHtml = '<div class="card-image"><img src="' + item.image + '" alt=""></div>';
+        } else {
+            fileHtml = '<div class="card-tags"><span class="tag">📎 ' + escapeHtml(item.fileName || '附件') + '</span></div>';
+        }
+    }
+    
+    return '<div class="card" onclick="viewItem(\'' + type + '\', \'' + item.id + '\')">' +
+        '<div class="card-date">' + date + '</div>' +
+        '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
+        '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
+        fileHtml +
+        tagsHtml +
+        '<div class="card-actions" onclick="event.stopPropagation()">' +
+            '<button onclick="shareToWeChat(\'' + item.id + '\', \'' + type + '\')">分享</button>' +
+            '<button onclick="editItem(\'' + type + '\', \'' + item.id + '\')">编辑</button>' +
+            '<button class="delete-btn" onclick="deleteItem(\'' + type + '\', \'' + item.id + '\')">删除</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function getLifeRecords() {
+    try {
+        const data = localStorage.getItem(StorageKeys.LIFE);
+        return data ? JSON.parse(data) : [];
+    } catch(e) {
+        return [];
+    }
+}
+
+function getWorks() {
+    try {
+        const data = localStorage.getItem(StorageKeys.WORKS);
+        return data ? JSON.parse(data) : [];
+    } catch(e) {
+        return [];
+    }
+}
+
+function previewFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        tempImageData = event.target.result;
+        tempFileName = file.name;
+        tempFileType = file.type;
+        tempFileSize = formatFileSize(file.size);
+        
+        const preview = document.getElementById('image-preview');
+        
+        if (file.type.indexOf('image/') === 0) {
+            preview.innerHTML = '<img src="' + tempImageData + '" alt="预览">';
+        } else {
+            const icon = getFileIcon(file.name);
+            preview.innerHTML = '<div class="file-preview">' +
+                '<span class="file-icon">' + icon + '</span>' +
+                '<div class="file-info">' +
+                    '<div class="file-name">' + escapeHtml(file.name) + '</div>' +
+                    '<div class="file-size">' + formatFileSize(file.size) + '</div>' +
+                '</div>' +
+                '<button type="button" class="file-remove" onclick="removeFile()">×</button>' +
+            '</div>';
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeFile() {
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('item-image').value = '';
+    document.getElementById('image-preview').innerHTML = '';
+}
+
+function getFileIcon(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const icons = {
+        'pdf': '📄',
+        'doc': '📝', 'docx': '📝',
+        'ppt': '📊', 'pptx': '📊',
+        'xls': '📈', 'xlsx': '📈',
+        'json': '📋',
+        'txt': '📃',
+        'zip': '📦', 'rar': '📦',
+        'mp3': '🎵', 'wav': '🎵',
+        'mp4': '🎬', 'avi': '🎬',
+    };
+    return icons[ext] || '📎';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function openModal(type, itemId) {
+    const modal = document.getElementById('modal');
+    const form = document.getElementById('modal-form');
+    const title = document.getElementById('modal-title');
+    
+    form.reset();
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('image-preview').innerHTML = '';
+    document.getElementById('item-type').value = type;
+    document.getElementById('item-id').value = itemId || '';
+    
+    title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
+    document.getElementById('item-date').valueAsDate = new Date();
+    
+    if (itemId) {
+        const items = type === 'life' ? getLifeRecords() : getWorks();
+        let item = null;
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].id === itemId) {
+                item = items[i];
+                break;
+            }
+        }
+        if (item) {
+            document.getElementById('item-title').value = item.title;
+            document.getElementById('item-content').value = item.content;
+            document.getElementById('item-date').value = item.date;
+            document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
+            if (item.image) {
+                tempImageData = item.image;
+                tempFileName = item.fileName;
+                tempFileType = item.fileType;
+                tempFileSize = item.fileSize;
+                
+                const preview = document.getElementById('image-preview');
+                if (item.fileType && item.fileType.indexOf('image/') === 0) {
+                    preview.innerHTML = '<img src="' + item.image + '" alt="预览">';
+                } else {
+                    const icon = getFileIcon(item.fileName || '');
+                    preview.innerHTML = '<div class="file-preview">' +
+                        '<span class="file-icon">' + icon + '</span>' +
+                        '<div class="file-info">' +
+                            '<div class="file-name">' + escapeHtml(item.fileName || '附件') + '</div>' +
+                            '<div class="file-size">' + (item.fileSize || '') + '</div>' +
+                        '</div>' +
+                    '</div>';
+                }
+            }
+        }
+    }
+    
+    modal.classList.add('show');
+}
+
+function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal')) return;
+    document.getElementById('modal').classList.remove('show');
+}
+
+function saveItem(e) {
+    e.preventDefault();
+    
+    const type = document.getElementById('item-type').value;
+    const itemId = document.getElementById('item-id').value;
+    const title = document.getElementById('item-title').value.trim();
+    const content = document.getElementById('item-content').value.trim();
+    const date = document.getElementById('item-date').value;
+    const tagsInput = document.getElementById('item-tags').value.trim();
+    const tags = tagsInput ? tagsInput.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
+    
+    const item = {
+        id: itemId || generateId(),
+        title: title,
+        content: content,
+        date: date,
+        tags: tags,
+        image: tempImageData,
+        fileName: tempFileName,
+        fileType: tempFileType,
+        fileSize: tempFileSize,
+        updatedAt: new Date().toISOString()
+    };
+    
+    if (type === 'life') {
+        const records = getLifeRecords();
+        if (itemId) {
+            for (let i = 0; i < records.length; i++) {
+                if (records[i].id === itemId) {
+                    records[i] = item;
+                    break;
+                }
+            }
+        } else {
+            records.unshift(item);
+        }
+        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
+    } else {
+        const works = getWorks();
+        if (itemId) {
+            for (let i = 0; i < works.length; i++) {
+                if (works[i].id === itemId) {
+                    works[i] = item;
+                    break;
+                }
+            }
+        } else {
+            works.unshift(item);
+        }
+        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+    }
+    
+    closeModal();
+    loadData();
+}
+
+function editItem(type, itemId) {
+    openModal(type, itemId);
+}
+
+function viewItem(type, itemId) {
+    const items = type === 'life' ? getLifeRecords() : getWorks();
+    let item = null;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].id === itemId) {
+            item = items[i];
+            break;
+        }
+    }
+    if (!item) return;
+    
+    const typeName = type === 'life' ? '生活记录' : '作品';
+    let text = typeName + '\n\n标题：' + item.title + '\n日期：' + new Date(item.date).toLocaleDateString('zh-CN') + '\n\n' + item.content;
+    if (item.tags && item.tags.length > 0) text += '\n标签：' + item.tags.join(', ');
+    if (item.fileName) text += '\n附件：' + item.fileName;
+    alert(text);
+}
+
+function deleteItem(type, itemId) {
+    if (!confirm('确定要删除吗？')) return;
+    
+    if (type === 'life') {
+        const records = getLifeRecords().filter(function(r) {
+            return r.id !== itemId;
+        });
+        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
+    } else {
+        const works = getWorks().filter(function(w) {
+            return w.id !== itemId;
+        });
+        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+    }
+    loadData();
+}
+
+function shareToWeChat(itemId, type) {
+    const modal = document.getElementById('share-modal');
+    const url = window.location.href + '#' + type + '-' + itemId;
+    
+    document.getElementById('share-url').textContent = url;
+    modal.classList.add('show');
+}
+
+function closeShareModal(e) {
+    if (e && e.target !== document.getElementById('share-modal')) return;
+    document.getElementById('share-modal').classList.remove('show');
+}
+
+function copyShareLink() {
+    const url = document.getElementById('share-url').textContent;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(function() {
+            alert('链接已复制，可以粘贴到微信了');
+        }).catch(function() {
+            fallbackCopy(url);
+        });
+    } else {
+        fallbackCopy(url);
+    }
+}
+
+function fallbackCopy(url) {
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    alert('链接已复制');
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeModal();
+        closeThemeModal();
+        closeShareModal();
+        closeFriendModal();
+        closeResetModal();
+    }
+});
