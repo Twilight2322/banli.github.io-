@@ -1,1446 +1,340 @@
-// 数据管理
-const StorageKeys = {
-    CURRENT_USER: 'site_current_user',
-    USERS: 'site_users',
-    USER_COUNT: 'site_user_count',
-    LIFE: 'site_life',
-    WORKS: 'site_works',
-    THEME: 'site_theme',
-    DARK_MODE: 'site_dark_mode',
-    FRIENDS: 'site_friends',
-    FRIEND_REQUESTS: 'site_friend_requests',
-    AVATARS: 'site_avatars'
-};
-
-const Themes = {
-    'default': { name: '默认', color: '#1a1a1a' },
-    'black': { name: '纯黑', color: '#000000' },
-    'blue': { name: '蓝色', color: '#0066cc' },
-    'green': { name: '绿色', color: '#00a854' },
-    'purple': { name: '紫色', color: '#722ed1' },
-    'orange': { name: '橙色', color: '#fa8c16' },
-    'red': { name: '红色', color: '#f5222d' },
-    'teal': { name: '青色', color: '#13c2c2' },
-    'cs1': { name: '长沙1号线', color: '#E60012' },
-    'cs2': { name: '长沙2号线', color: '#00AFEC' },
-    'cs3': { name: '长沙3号线', color: '#ABCD03' },
-    'cs4': { name: '长沙4号线', color: '#920783' },
-    'cs5': { name: '长沙5号线', color: '#FFE200' },
-    'cs6': { name: '长沙6号线', color: '#005BAC' },
-    'gz1': { name: '广州1号线', color: '#edcf3b' },
-    'gz2': { name: '广州2号线', color: '#00679e' },
-    'gz3': { name: '广州3号线', color: '#e89e47' },
-    'gz4': { name: '广州4号线', color: '#01824a' },
-    'gz5': { name: '广州5号线', color: '#c70541' },
-    'gz6': { name: '广州6号线', color: '#6e0346' },
-    'gz7': { name: '广州7号线', color: '#9dd32d' },
-    'gz8': { name: '广州8号线', color: '#00858a' },
-    'gz9': { name: '广州9号线', color: '#5ec998' },
-    'gz10': { name: '广州10号线', color: '#6e90b6' },
-    'gz11': { name: '广州11号线', color: '#F5BB17' },
-    'gz12': { name: '广州12号线', color: '#59621d' },
-    'gz13': { name: '广州13号线', color: '#888600' },
-    'gz14': { name: '广州14号线', color: '#792720' },
-};
-
-const Emojis = [
-    '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😜', '🤪', '🤔',
-    '😎', '🥳', '😢', '😭', '😤', '😡', '🥺', '😴', '🤯', '🥶',
-    '👍', '👎', '👏', '🙌', '🙏', '💪', '🤝', '✌️', '🤞', '👌',
-    '❤️', '💔', '💕', '💖', '💗', '💯', '✨', '🔥', '🎉', '🎊',
-    '🌟', '⭐', '☀️', '🌙', '☁️', '🌈', '🌸', '🌺', '🍀', '🌿',
-    '🍎', '🍊', '🍋', '🍉', '🍇', '🍓', '🍑', '🥭', '🍍', '🥝',
-    '🍔', '🍟', '🍕', '🌮', '🍜', '🍝', '🍣', '🍱', '🥟', '🍦',
-    '🍰', '🎂', '🍭', '🍬', '🍫', '🍿', '☕', '🍵', '🧃', '🍺',
-    '📷', '📸', '🎨', '🎭', '🎪', '🎢', '🎡', '🎠', '🎮', '🎲',
-    '✈️', '🚗', '🚕', '🚙', '🚌', '🚇', '🚄', '🚲', '🏍️', '🚀',
-    '🏠', '🏡', '🏫', '🏢', '🏥', '🏦', '🏨', '🏪', '⛪',
-    '🌊', '🏖️', '🏝️', '🏔️', '⛰️', '🌋', '🏜️', '🏞️', '🌅', '🌄'
-];
-
-const MAX_USERNAME_LENGTH = 12;
-const ADMIN_CODE = 'wknwknwkn';
-
-let currentUser = null;
-let isLoginMode = false;
-let currentTheme = 'default';
-let tempImageData = null;
-let tempFileName = null;
-let tempFileType = null;
-let tempFileSize = null;
-let isDarkMode = false;
-
-// 初始化
-document.addEventListener('DOMContentLoaded', function() {
-    checkAuth();
-    setupEventListeners();
-    loadTheme();
-    loadDarkMode();
-    initEmojiPicker();
-});
-
-// 用户管理
-function getAllUsers() {
-    try {
-        const data = localStorage.getItem(StorageKeys.USERS);
-        return data ? JSON.parse(data) : {};
-    } catch(e) {
-        return {};
-    }
-}
-
-function saveUser(userId, userData) {
-    const users = getAllUsers();
-    users[userId] = userData;
-    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
-}
-
-function getUser(userId) {
-    const users = getAllUsers();
-    return users[userId];
-}
-
-function generateUserId() {
-    let count = parseInt(localStorage.getItem(StorageKeys.USER_COUNT) || '0');
-    count++;
-    localStorage.setItem(StorageKeys.USER_COUNT, count.toString());
-    return 'NYS-Kn' + count.toString().padStart(3, '0');
-}
-
-function getCurrentUser() {
-    const userId = localStorage.getItem(StorageKeys.CURRENT_USER);
-    if (userId) {
-        return getUser(userId);
-    }
-    return null;
-}
-
-function setCurrentUser(userId) {
-    if (userId) {
-        localStorage.setItem(StorageKeys.CURRENT_USER, userId);
-    } else {
-        localStorage.removeItem(StorageKeys.CURRENT_USER);
-    }
-}
-
-// 头像管理
-function getAvatar(userId) {
-    try {
-        const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-        return avatars[userId] || '';
-    } catch(e) {
-        return '';
-    }
-}
-
-function saveAvatar(userId, avatarData) {
-    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-    avatars[userId] = avatarData;
-    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
-}
-
-function removeAvatar(userId) {
-    const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
-    delete avatars[userId];
-    localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
-}
-
-function checkAuth() {
-    currentUser = getCurrentUser();
-    if (currentUser) {
-        showMainScreen();
-    } else {
-        showAuthScreen();
-        loadAccountList();
-    }
-}
-
-function loadAccountList() {
-    const users = getAllUsers();
-    const userIds = Object.keys(users);
-    const accountList = document.getElementById('account-list');
-    const accountsDiv = document.getElementById('accounts');
-    
-    if (userIds.length > 0 && accountList && accountsDiv) {
-        accountList.style.display = 'block';
-        let html = '';
-        for (let i = 0; i < userIds.length; i++) {
-            const userId = userIds[i];
-            const user = users[userId];
-            const avatar = getAvatar(userId);
-            const avatarHtml = avatar 
-                ? '<img src="' + avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
-                : user.username.charAt(0).toUpperCase();
-            html += '<div class="account-item" onclick="loginWithAccount(\'' + userId + '\')">' +
-                '<div class="account-avatar">' + avatarHtml + '</div>' +
-                '<div class="account-info">' +
-                    '<div class="account-name">' + escapeHtml(user.username) + '</div>' +
-                    '<div class="account-id">' + userId + '</div>' +
-                '</div>' +
-            '</div>';
-        }
-        accountsDiv.innerHTML = html;
-    } else if (accountList) {
-        accountList.style.display = 'none';
-    }
-}
-
-function loginWithAccount(userId) {
-    const user = getUser(userId);
-    if (!user) return;
-    
-    document.getElementById('username').value = userId;
-    document.getElementById('password').value = '';
-    document.getElementById('password').focus();
-    
-    if (!isLoginMode) {
-        toggleAuthMode();
-    }
-}
-
-function setupEventListeners() {
-    const authForm = document.getElementById('auth-form');
-    if (authForm) {
-        authForm.addEventListener('submit', handleAuth);
-    }
-    
-    const switchBtn = document.getElementById('auth-switch-btn');
-    if (switchBtn) {
-        switchBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            toggleAuthMode();
-        });
-    }
-    
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', logout);
-    }
-    
-    const themeBtn = document.getElementById('theme-btn');
-    if (themeBtn) {
-        themeBtn.addEventListener('click', openThemeModal);
-    }
-    
-    const navLinks = document.querySelectorAll('.nav-link');
-    for (let i = 0; i < navLinks.length; i++) {
-        navLinks[i].addEventListener('click', function(e) {
-            e.preventDefault();
-            switchPage(this.dataset.page);
-        });
-    }
-}
-
-function loadDarkMode() {
-    const saved = localStorage.getItem(StorageKeys.DARK_MODE) === 'true';
-    isDarkMode = saved;
-    applyDarkMode(saved);
-}
-
-function toggleDarkMode() {
-    isDarkMode = !isDarkMode;
-    localStorage.setItem(StorageKeys.DARK_MODE, isDarkMode.toString());
-    applyDarkMode(isDarkMode);
-}
-
-function applyDarkMode(enabled) {
-    document.body.classList.toggle('dark-mode', enabled);
-    const toggle = document.getElementById('dark-mode-toggle');
-    if (toggle) toggle.checked = enabled;
-}
-
-function initEmojiPicker() {
-    const picker = document.getElementById('emoji-picker');
-    if (!picker) return;
-    let html = '';
-    for (let i = 0; i < Emojis.length; i++) {
-        html += '<span class="emoji-item" onclick="insertEmoji(\'' + Emojis[i] + '\')">' + Emojis[i] + '</span>';
-    }
-    picker.innerHTML = html;
-}
-
-function insertEmoji(emoji) {
-    const textarea = document.getElementById('item-content');
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    textarea.value = text.substring(0, start) + emoji + text.substring(end);
-    textarea.focus();
-    textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
-}
-
-function updateAvatarDisplay() {
-    if (!currentUser) return;
-    
-    const avatar = getAvatar(currentUser.userId);
-    const navAvatar = document.getElementById('nav-avatar');
-    if (navAvatar) {
-        if (avatar) {
-            navAvatar.innerHTML = '<img src="' + avatar + '" alt="avatar">';
-        } else {
-            navAvatar.innerHTML = '<div class="nav-avatar-text">' + currentUser.username.charAt(0).toUpperCase() + '</div>';
-        }
-    }
-    
-    const settingsAvatar = document.getElementById('current-avatar');
-    if (settingsAvatar) {
-        if (avatar) {
-            settingsAvatar.src = avatar;
-            settingsAvatar.style.display = 'block';
-        } else {
-            settingsAvatar.style.display = 'none';
-        }
-    }
-}
-
-function changeAvatar(e) {
-    const file = e.target.files[0];
-    if (!file || !currentUser) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        saveAvatar(currentUser.userId, event.target.result);
-        updateAvatarDisplay();
-        loadFeed();
-        alert('头像已更新');
-    };
-    reader.readAsDataURL(file);
-}
-
-function resetAvatar() {
-    if (!currentUser) return;
-    removeAvatar(currentUser.userId);
-    updateAvatarDisplay();
-    loadFeed();
-    alert('已恢复默认头像');
-}
-
-function changeUsername(e) {
-    e.preventDefault();
-    if (!currentUser) return;
-    
-    const newUsername = document.getElementById('new-username').value.trim();
-    const errorEl = document.getElementById('username-error');
-    const successEl = document.getElementById('username-success');
-    
-    errorEl.textContent = '';
-    successEl.textContent = '';
-    
-    if (newUsername.length < 2) {
-        errorEl.textContent = '用户名至少2个字符';
-        return;
-    }
-    
-    if (newUsername.length > MAX_USERNAME_LENGTH) {
-        errorEl.textContent = '用户名最多' + MAX_USERNAME_LENGTH + '个字符';
-        return;
-    }
-    
-    currentUser.username = newUsername;
-    saveUser(currentUser.userId, currentUser);
-    
-    document.getElementById('nav-username').textContent = newUsername;
-    document.getElementById('settings-username').textContent = newUsername;
-    updateAvatarDisplay();
-    loadFeed();
-    
-    successEl.textContent = '用户名修改成功';
-    document.getElementById('username-form').reset();
-    
-    setTimeout(function() {
-        successEl.textContent = '';
-    }, 3000);
-}
-
-function changePassword(e) {
-    e.preventDefault();
-    if (!currentUser) return;
-    
-    const oldPassword = document.getElementById('old-password').value;
-    const newPassword = document.getElementById('new-password').value;
-    const confirmPassword = document.getElementById('confirm-new-password').value;
-    const errorEl = document.getElementById('password-error');
-    const successEl = document.getElementById('password-success');
-    
-    errorEl.textContent = '';
-    successEl.textContent = '';
-    
-    if (hashPassword(oldPassword) !== currentUser.password) {
-        errorEl.textContent = '当前密码不正确';
-        return;
-    }
-    
-    if (newPassword.length < 4) {
-        errorEl.textContent = '新密码至少4位';
-        return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-        errorEl.textContent = '两次新密码不一致';
-        return;
-    }
-    
-    currentUser.password = hashPassword(newPassword);
-    saveUser(currentUser.userId, currentUser);
-    
-    successEl.textContent = '密码修改成功';
-    document.getElementById('password-form').reset();
-    
-    setTimeout(function() {
-        successEl.textContent = '';
-    }, 3000);
-}
-
-function openResetModal() {
-    document.getElementById('reset-modal').classList.add('show');
-    document.getElementById('reset-error').textContent = '';
-    document.getElementById('reset-success').textContent = '';
-    document.getElementById('reset-form').reset();
-    
-    // 加载账号列表到下拉框
-    const users = getAllUsers();
-    const userIds = Object.keys(users).sort();
-    const select = document.getElementById('reset-account');
-    select.innerHTML = '<option value="">请选择账号（共 ' + userIds.length + ' 个）</option>';
-    for (let i = 0; i < userIds.length; i++) {
-        const userId = userIds[i];
-        const user = users[userId];
-        select.innerHTML += '<option value="' + userId + '">' + (i+1) + '. ' + escapeHtml(user.username) + ' (' + userId + ')</option>';
-    }
-}
-
-function closeResetModal(e) {
-    if (e && e.target !== document.getElementById('reset-modal')) return;
-    document.getElementById('reset-modal').classList.remove('show');
-}
-
-function resetAllData() {
-    const adminCode = document.getElementById('admin-code').value;
-    const errorEl = document.getElementById('reset-error');
-    const successEl = document.getElementById('reset-success');
-    
-    errorEl.textContent = '';
-    successEl.textContent = '';
-    
-    if (adminCode !== ADMIN_CODE) {
-        errorEl.textContent = '管理员口令不正确';
-        return;
-    }
-    
-    if (!confirm('确定要重置所有用户数据吗？这将删除所有账号、记录和设置！')) {
-        return;
-    }
-    
-    // 清除所有数据
-    localStorage.removeItem(StorageKeys.USERS);
-    localStorage.removeItem(StorageKeys.USER_COUNT);
-    localStorage.removeItem(StorageKeys.CURRENT_USER);
-    localStorage.removeItem(StorageKeys.LIFE);
-    localStorage.removeItem(StorageKeys.WORKS);
-    localStorage.removeItem(StorageKeys.FRIENDS);
-    localStorage.removeItem(StorageKeys.FRIEND_REQUESTS);
-    localStorage.removeItem(StorageKeys.AVATARS);
-    
-    successEl.textContent = '所有数据已重置！';
-    
-    setTimeout(function() {
-        closeResetModal();
-        location.reload();
-    }, 1500);
-}
-
-function resetPassword(e) {
-    e.preventDefault();
-    const selectedUserId = document.getElementById('reset-account').value;
-    const adminCode = document.getElementById('admin-code').value;
-    const newPassword = document.getElementById('reset-new-password').value;
-    const confirmPassword = document.getElementById('reset-confirm-password').value;
-    const errorEl = document.getElementById('reset-error');
-    const successEl = document.getElementById('reset-success');
-    
-    errorEl.textContent = '';
-    successEl.textContent = '';
-    
-    if (!selectedUserId) {
-        errorEl.textContent = '请选择要重置的账号';
-        return;
-    }
-    
-    if (adminCode !== ADMIN_CODE) {
-        errorEl.textContent = '管理员口令不正确';
-        return;
-    }
-    
-    if (newPassword.length < 4) {
-        errorEl.textContent = '新密码至少4位';
-        return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-        errorEl.textContent = '两次新密码不一致';
-        return;
-    }
-    
-    const users = getAllUsers();
-    if (!users[selectedUserId]) {
-        errorEl.textContent = '账号不存在';
-        return;
-    }
-    
-    users[selectedUserId].password = hashPassword(newPassword);
-    localStorage.setItem(StorageKeys.USERS, JSON.stringify(users));
-    
-    successEl.textContent = '密码重置成功，请使用新密码登录';
-    
-    setTimeout(function() {
-        closeResetModal();
-        if (!isLoginMode) {
-            toggleAuthMode();
-        }
-    }, 2000);
-}
-
-// 好友系统
-function getFriends() {
-    try {
-        const data = localStorage.getItem(StorageKeys.FRIENDS);
-        return data ? JSON.parse(data) : {};
-    } catch(e) {
-        return {};
-    }
-}
-
-function saveFriends(friends) {
-    localStorage.setItem(StorageKeys.FRIENDS, JSON.stringify(friends));
-}
-
-function getFriendRequests() {
-    try {
-        const data = localStorage.getItem(StorageKeys.FRIEND_REQUESTS);
-        return data ? JSON.parse(data) : [];
-    } catch(e) {
-        return [];
-    }
-}
-
-function saveFriendRequests(requests) {
-    localStorage.setItem(StorageKeys.FRIEND_REQUESTS, JSON.stringify(requests));
-}
-
-function openAddFriendModal() {
-    document.getElementById('friend-modal').classList.add('show');
-    document.getElementById('friend-error').textContent = '';
-    document.getElementById('friend-success').textContent = '';
-}
-
-function closeFriendModal(e) {
-    if (e && e.target !== document.getElementById('friend-modal')) return;
-    document.getElementById('friend-modal').classList.remove('show');
-}
-
-function sendFriendRequest(e) {
-    e.preventDefault();
-    if (!currentUser) return;
-    
-    const friendId = document.getElementById('friend-id').value.trim();
-    const message = document.getElementById('friend-message').value.trim();
-    const errorEl = document.getElementById('friend-error');
-    const successEl = document.getElementById('friend-success');
-    
-    errorEl.textContent = '';
-    successEl.textContent = '';
-    
-    if (friendId === currentUser.userId) {
-        errorEl.textContent = '不能添加自己为好友';
-        return;
-    }
-    
-    const users = getAllUsers();
-    if (!users[friendId]) {
-        errorEl.textContent = '用户不存在，请检查ID是否正确';
-        return;
-    }
-    
-    const friends = getFriends();
-    const myFriends = friends[currentUser.userId] || [];
-    if (myFriends.indexOf(friendId) > -1) {
-        errorEl.textContent = '已经是好友了';
-        return;
-    }
-    
-    const requests = getFriendRequests();
-    for (let i = 0; i < requests.length; i++) {
-        if (requests[i].from === currentUser.userId && requests[i].to === friendId) {
-            errorEl.textContent = '已经发送过好友请求了';
-            return;
-        }
-    }
-    
-    const request = {
-        id: generateId(),
-        from: currentUser.userId,
-        fromUsername: currentUser.username,
-        to: friendId,
-        message: message || '请求添加你为好友',
-        timestamp: new Date().toISOString()
-    };
-    
-    requests.push(request);
-    saveFriendRequests(requests);
-    
-    successEl.textContent = '好友请求已发送';
-    document.getElementById('friend-form').reset();
-    
-    setTimeout(function() {
-        closeFriendModal();
-    }, 1500);
-}
-
-function acceptFriendRequest(requestId) {
-    if (!currentUser) return;
-    
-    const requests = getFriendRequests();
-    let request = null;
-    for (let i = 0; i < requests.length; i++) {
-        if (requests[i].id === requestId) {
-            request = requests[i];
-            break;
-        }
-    }
-    if (!request) return;
-    
-    const friends = getFriends();
-    
-    if (!friends[currentUser.userId]) {
-        friends[currentUser.userId] = [];
-    }
-    if (friends[currentUser.userId].indexOf(request.from) === -1) {
-        friends[currentUser.userId].push(request.from);
-    }
-    
-    if (!friends[request.from]) {
-        friends[request.from] = [];
-    }
-    if (friends[request.from].indexOf(currentUser.userId) === -1) {
-        friends[request.from].push(currentUser.userId);
-    }
-    
-    saveFriends(friends);
-    
-    const newRequests = requests.filter(function(r) {
-        return r.id !== requestId;
-    });
-    saveFriendRequests(newRequests);
-    
-    loadFriends();
-    alert('已添加好友');
-}
-
-function rejectFriendRequest(requestId) {
-    const requests = getFriendRequests();
-    const newRequests = requests.filter(function(r) {
-        return r.id !== requestId;
-    });
-    saveFriendRequests(newRequests);
-    loadFriends();
-}
-
-function removeFriend(friendId) {
-    if (!currentUser) return;
-    if (!confirm('确定要删除这个好友吗？')) return;
-    
-    const friends = getFriends();
-    
-    if (friends[currentUser.userId]) {
-        friends[currentUser.userId] = friends[currentUser.userId].filter(function(id) {
-            return id !== friendId;
-        });
-    }
-    
-    if (friends[friendId]) {
-        friends[friendId] = friends[friendId].filter(function(id) {
-            return id !== currentUser.userId;
-        });
-    }
-    
-    saveFriends(friends);
-    loadFriends();
-}
-
-function loadFriends() {
-    if (!currentUser) return;
-    
-    const friends = getFriends();
-    const requests = getFriendRequests();
-    const users = getAllUsers();
-    
-    const requestsSection = document.getElementById('friend-requests-section');
-    const requestsList = document.getElementById('friend-requests-list');
-    const myRequests = requests.filter(function(r) {
-        return r.to === currentUser.userId;
-    });
-    
-    if (myRequests.length > 0) {
-        requestsSection.style.display = 'block';
-        let html = '';
-        for (let i = 0; i < myRequests.length; i++) {
-            const r = myRequests[i];
-            const avatar = getAvatar(r.from);
-            const avatarHtml = avatar 
-                ? '<img src="' + avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
-                : r.fromUsername.charAt(0).toUpperCase();
-            html += '<div class="friend-request-item">' +
-                '<div class="friend-avatar">' + avatarHtml + '</div>' +
-                '<div class="friend-info">' +
-                    '<div class="friend-name">' + escapeHtml(r.fromUsername) + '</div>' +
-                    '<div class="friend-id">' + r.from + '</div>' +
-                    '<div class="friend-request-message">' + escapeHtml(r.message) + '</div>' +
-                '</div>' +
-                '<div class="friend-actions">' +
-                    '<button class="friend-btn accept" onclick="acceptFriendRequest(\'' + r.id + '\')">接受</button>' +
-                    '<button class="friend-btn reject" onclick="rejectFriendRequest(\'' + r.id + '\')">拒绝</button>' +
-                '</div>' +
-            '</div>';
-        }
-        requestsList.innerHTML = html;
-    } else {
-        requestsSection.style.display = 'none';
-    }
-    
-    const friendsList = document.getElementById('friends-list');
-    const friendsEmpty = document.getElementById('friends-empty');
-    const myFriends = friends[currentUser.userId] || [];
-    
-    if (myFriends.length === 0) {
-        friendsList.innerHTML = '';
-        friendsEmpty.style.display = 'block';
-        return;
-    }
-    
-    friendsEmpty.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < myFriends.length; i++) {
-        const friendId = myFriends[i];
-        const user = users[friendId] || { username: '未知用户' };
-        const avatar = getAvatar(friendId);
-        const avatarHtml = avatar 
-            ? '<img src="' + avatar + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
-            : user.username.charAt(0).toUpperCase();
-        html += '<div class="friend-item">' +
-            '<div class="friend-avatar">' + avatarHtml + '</div>' +
-            '<div class="friend-info">' +
-                '<div class="friend-name">' + escapeHtml(user.username) + '</div>' +
-                '<div class="friend-id">' + friendId + '</div>' +
-            '</div>' +
-            '<div class="friend-actions">' +
-                '<button class="friend-btn remove" onclick="removeFriend(\'' + friendId + '\')">删除</button>' +
-            '</div>' +
-        '</div>';
-    }
-    friendsList.innerHTML = html;
-}
-
-function loadTheme() {
-    const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
-    currentTheme = saved;
-    applyTheme(saved);
-}
-
-function applyTheme(themeKey) {
-    const theme = Themes[themeKey] || Themes.default;
-    document.documentElement.style.setProperty('--accent', theme.color);
-    currentTheme = themeKey;
-    localStorage.setItem(StorageKeys.THEME, themeKey);
-}
-
-function openThemeModal() {
-    const modal = document.getElementById('theme-modal');
-    renderThemeGrid('basic-themes', ['default', 'black', 'blue', 'green', 'purple', 'orange', 'red', 'teal']);
-    renderThemeGrid('changsha-themes', ['cs1', 'cs2', 'cs3', 'cs4', 'cs5', 'cs6']);
-    renderThemeGrid('guangzhou-themes', ['gz1', 'gz2', 'gz3', 'gz4', 'gz5', 'gz6', 'gz7', 'gz8', 'gz9', 'gz10', 'gz11', 'gz12', 'gz13', 'gz14']);
-    modal.classList.add('show');
-}
-
-function renderThemeGrid(containerId, themeKeys) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    let html = '';
-    for (let i = 0; i < themeKeys.length; i++) {
-        const key = themeKeys[i];
-        const theme = Themes[key];
-        const selected = key === currentTheme ? 'selected' : '';
-        html += '<div class="theme-item ' + selected + '" style="background:' + theme.color + '" onclick="selectTheme(\'' + key + '\')" title="' + theme.name + '"></div>';
-    }
-    container.innerHTML = html;
-}
-
-function selectTheme(key) {
-    applyTheme(key);
-    openThemeModal();
-}
-
-function closeThemeModal(e) {
-    if (e && e.target !== document.getElementById('theme-modal')) return;
-    document.getElementById('theme-modal').classList.remove('show');
-}
-
-function toggleAuthMode() {
-    isLoginMode = !isLoginMode;
-    const confirmGroup = document.getElementById('confirm-group');
-    const authBtn = document.querySelector('.auth-btn');
-    const switchText = document.getElementById('auth-switch-text');
-    const switchBtn = document.getElementById('auth-switch-btn');
-    const title = document.querySelector('.auth-title');
-    const usernameLabel = document.getElementById('username-label');
-    const usernameInput = document.getElementById('username');
-    
-    if (isLoginMode) {
-        confirmGroup.style.display = 'none';
-        authBtn.textContent = '登录';
-        switchText.textContent = '还没有账号？';
-        switchBtn.textContent = '立即注册';
-        title.textContent = '欢迎回来';
-        usernameLabel.textContent = '用户ID（如：NYS-Kn001）';
-        usernameInput.removeAttribute('maxlength');
-    } else {
-        confirmGroup.style.display = 'block';
-        authBtn.textContent = '创建账号';
-        switchText.textContent = '已有账号？';
-        switchBtn.textContent = '直接登录';
-        title.textContent = '欢迎来到我的空间';
-        usernameLabel.textContent = '你的名称（最多12字）';
-        usernameInput.setAttribute('maxlength', '12');
-    }
-    document.getElementById('auth-error').textContent = '';
-}
-
-function handleAuth(e) {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const confirmPassword = document.getElementById('confirm-password').value;
-    const errorEl = document.getElementById('auth-error');
-    
-    if (!username) { 
-        errorEl.textContent = isLoginMode ? '请输入用户ID' : '请输入名称'; 
-        return; 
-    }
-    if (!password) { errorEl.textContent = '请输入密码'; return; }
-    
-    if (!isLoginMode) {
-        // 注册新账号
-        if (username.length > MAX_USERNAME_LENGTH) { 
-            errorEl.textContent = '用户名最多' + MAX_USERNAME_LENGTH + '个字符'; 
-            return; 
-        }
-        if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
-        if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
-        
-        const userId = generateUserId();
-        const user = { 
-            username: username, 
-            userId: userId,
-            password: hashPassword(password), 
-            createdAt: new Date().toISOString() 
-        };
-        
-        saveUser(userId, user);
-        setCurrentUser(userId);
-        currentUser = user;
-        
-        showMainScreen();
-    } else {
-        // 登录现有账号 - 用ID登录
-        const users = getAllUsers();
-        const user = users[username];
-        
-        if (!user) {
-            errorEl.textContent = '用户ID不存在';
-            return;
-        }
-        
-        if (user.password !== hashPassword(password)) {
-            errorEl.textContent = '密码错误';
-            return;
-        }
-        
-        setCurrentUser(username);
-        currentUser = user;
-        showMainScreen();
-    }
-}
-
-function hashPassword(password) {
-    let hash = 0;
-    for (let i = 0; i < password.length; i++) {
-        const char = password.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return hash.toString();
-}
-
-function showMainScreen() {
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('main-screen').style.display = 'flex';
-    
-    document.getElementById('nav-username').textContent = currentUser.username;
-    document.getElementById('nav-userid').textContent = currentUser.userId;
-    
-    document.getElementById('settings-username').textContent = currentUser.username;
-    document.getElementById('settings-userid').textContent = currentUser.userId;
-    document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
-    
-    updateAvatarDisplay();
-    loadData();
-    loadFriends();
-}
-
-function showAuthScreen() {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('main-screen').style.display = 'none';
-    loadAccountList();
-}
-
-function logout() {
-    if (confirm('确定要退出吗？')) {
-        setCurrentUser(null);
-        currentUser = null;
-        showAuthScreen();
-        document.getElementById('auth-form').reset();
-    }
-}
-
-function switchAccount() {
-    if (confirm('确定要切换账号吗？')) {
-        setCurrentUser(null);
-        currentUser = null;
-        showAuthScreen();
-        document.getElementById('auth-form').reset();
-        if (!isLoginMode) {
-            toggleAuthMode();
-        }
-    }
-}
-
-function switchPage(pageName) {
-    const navLinks = document.querySelectorAll('.nav-link');
-    for (let i = 0; i < navLinks.length; i++) {
-        if (navLinks[i].dataset.page === pageName) {
-            navLinks[i].classList.add('active');
-        } else {
-            navLinks[i].classList.remove('active');
-        }
-    }
-    
-    const pages = document.querySelectorAll('.page');
-    for (let i = 0; i < pages.length; i++) {
-        if (pages[i].id === 'page-' + pageName) {
-            pages[i].classList.add('active');
-        } else {
-            pages[i].classList.remove('active');
-        }
-    }
-    
-    if (pageName === 'friends') {
-        loadFriends();
-    }
-}
-
-function loadData() {
-    loadFeed();
-    loadLifeRecords();
-    loadWorks();
-}
-
-function loadFeed() {
-    if (!currentUser) return;
-    
-    const lifeRecords = getLifeRecords();
-    const works = getWorks();
-    
-    const allItems = [];
-    for (let i = 0; i < lifeRecords.length; i++) {
-        allItems.push(Object.assign({}, lifeRecords[i], { type: 'life' }));
-    }
-    for (let i = 0; i < works.length; i++) {
-        allItems.push(Object.assign({}, works[i], { type: 'work' }));
-    }
-    
-    allItems.sort(function(a, b) {
-        return new Date(b.date) - new Date(a.date);
-    });
-    
-    const items = allItems.slice(0, 20);
-    
-    const container = document.getElementById('feed-list');
-    const emptyState = document.getElementById('feed-empty');
-    
-    if (items.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < items.length; i++) {
-        html += createFeedItem(items[i]);
-    }
-    container.innerHTML = html;
-}
-
-function createFeedItem(item) {
-    const date = new Date(item.date).toLocaleDateString('zh-CN');
-    const typeName = item.type === 'life' ? '生活' : '作品';
-    
-    let tagsHtml = '';
-    if (item.tags && item.tags.length > 0) {
-        tagsHtml = '<div class="feed-tags">';
-        for (let i = 0; i < item.tags.length; i++) {
-            tagsHtml += '<span class="feed-tag">#' + escapeHtml(item.tags[i]) + '</span>';
-        }
-        tagsHtml += '</div>';
-    }
-    
-    const avatar = getAvatar(currentUser.userId);
-    const avatarHtml = avatar 
-        ? '<img src="' + avatar + '" alt="avatar">'
-        : '<div class="feed-avatar-text">' + currentUser.username.charAt(0).toUpperCase() + '</div>';
-    
-    let fileHtml = '';
-    if (item.image) {
-        if (item.fileType && item.fileType.indexOf('image/') === 0) {
-            fileHtml = '<div class="feed-image" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')"><img src="' + item.image + '" alt=""></div>';
-        } else {
-            const icon = getFileIcon(item.fileName || '');
-            fileHtml = '<div class="feed-file" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')">' +
-                '<span class="feed-file-icon">' + icon + '</span>' +
-                '<span class="feed-file-name">' + escapeHtml(item.fileName || '附件') + ' (' + (item.fileSize || '') + ')</span>' +
-                '<span style="margin-left:auto;color:var(--text-muted);font-size:12px;">点击打开</span>' +
-            '</div>';
-        }
-    }
-    
-    return '<div class="feed-item">' +
-        '<div class="feed-header">' +
-            '<div class="feed-avatar">' + avatarHtml + '</div>' +
-            '<div class="feed-info">' +
-                '<div class="feed-author">' + escapeHtml(currentUser.username) + '</div>' +
-                '<div class="feed-user-id">' + (currentUser.userId || '') + '</div>' +
-                '<div class="feed-time">' + date + '</div>' +
-            '</div>' +
-            '<span class="feed-type ' + item.type + '">' + typeName + '</span>' +
-        '</div>' +
-        '<div class="feed-content">' +
-            '<div class="feed-title">' + escapeHtml(item.title) + '</div>' +
-            '<div class="feed-text">' + escapeHtml(item.content) + '</div>' +
-            fileHtml +
-            tagsHtml +
-        '</div>' +
-        '<div class="feed-actions">' +
-            '<button class="feed-action" onclick="shareToWeChat(\'' + item.id + '\', \'' + item.type + '\')">📤 分享到微信</button>' +
-            '<button class="feed-action" onclick="editItem(\'' + item.type + '\', \'' + item.id + '\')">✏️ 编辑</button>' +
-            '<button class="feed-action delete" onclick="deleteItem(\'' + item.type + '\', \'' + item.id + '\')">🗑️ 删除</button>' +
-        '</div>' +
-    '</div>';
-}
-
-function openFile(itemId, type) {
-    const items = type === 'life' ? getLifeRecords() : getWorks();
-    let item = null;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].id === itemId) {
-            item = items[i];
-            break;
-        }
-    }
-    if (!item || !item.image) return;
-    
-    // 创建新窗口打开文件
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-        alert('请允许弹出窗口以打开文件');
-        return;
-    }
-    
-    if (item.fileType && item.fileType.indexOf('image/') === 0) {
-        // 图片直接显示
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '图片') + '</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;"><img src="' + item.image + '" style="max-width:100%;max-height:100vh;" onclick="window.close()"></body></html>');
-    } else if (item.fileType === 'application/pdf') {
-        // PDF 使用浏览器内置查看器
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || 'PDF') + '</title></head><body style="margin:0;"><embed src="' + item.image + '" type="application/pdf" width="100%" height="100%" style="min-height:100vh;"></body></html>');
-    } else {
-        // 其他文件提供下载
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '文件') + '</title></head><body style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:sans-serif;"><div style="text-align:center;"><p>文件无法直接预览</p><a href="' + item.image + '" download="' + escapeHtml(item.fileName || 'file') + '" style="padding:10px 20px;background:#0066cc;color:#fff;text-decoration:none;border-radius:4px;">下载文件</a></div></body></html>');
-    }
-    newWindow.document.close();
-}
-
-function loadLifeRecords() {
-    const records = getLifeRecords();
-    const container = document.getElementById('life-list');
-    const emptyState = document.getElementById('life-empty');
-    
-    if (records.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < records.length; i++) {
-        html += createCard(records[i], 'life');
-    }
-    container.innerHTML = html;
-}
-
-function loadWorks() {
-    const works = getWorks();
-    const container = document.getElementById('works-list');
-    const emptyState = document.getElementById('works-empty');
-    
-    if (works.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < works.length; i++) {
-        html += createCard(works[i], 'work');
-    }
-    container.innerHTML = html;
-}
-
-function createCard(item, type) {
-    const date = new Date(item.date).toLocaleDateString('zh-CN');
-    
-    let tagsHtml = '';
-    if (item.tags && item.tags.length > 0) {
-        tagsHtml = '<div class="card-tags">';
-        for (let i = 0; i < item.tags.length; i++) {
-            tagsHtml += '<span class="tag">' + escapeHtml(item.tags[i]) + '</span>';
-        }
-        tagsHtml += '</div>';
-    }
-    
-    let fileHtml = '';
-    if (item.image) {
-        if (item.fileType && item.fileType.indexOf('image/') === 0) {
-            fileHtml = '<div class="card-image"><img src="' + item.image + '" alt=""></div>';
-        } else {
-            fileHtml = '<div class="card-tags"><span class="tag">📎 ' + escapeHtml(item.fileName || '附件') + '</span></div>';
-        }
-    }
-    
-    return '<div class="card" onclick="viewItem(\'' + type + '\', \'' + item.id + '\')">' +
-        '<div class="card-date">' + date + '</div>' +
-        '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
-        '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
-        fileHtml +
-        tagsHtml +
-        '<div class="card-actions" onclick="event.stopPropagation()">' +
-            '<button onclick="shareToWeChat(\'' + item.id + '\', \'' + type + '\')">分享</button>' +
-            '<button onclick="editItem(\'' + type + '\', \'' + item.id + '\')">编辑</button>' +
-            '<button class="delete-btn" onclick="deleteItem(\'' + type + '\', \'' + item.id + '\')">删除</button>' +
-        '</div>' +
-    '</div>';
-}
-
-function getLifeRecords() {
-    try {
-        const data = localStorage.getItem(StorageKeys.LIFE);
-        return data ? JSON.parse(data) : [];
-    } catch(e) {
-        return [];
-    }
-}
-
-function getWorks() {
-    try {
-        const data = localStorage.getItem(StorageKeys.WORKS);
-        return data ? JSON.parse(data) : [];
-    } catch(e) {
-        return [];
-    }
-}
-
-function previewFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        tempImageData = event.target.result;
-        tempFileName = file.name;
-        tempFileType = file.type;
-        tempFileSize = formatFileSize(file.size);
-        
-        const preview = document.getElementById('image-preview');
-        
-        if (file.type.indexOf('image/') === 0) {
-            preview.innerHTML = '<img src="' + tempImageData + '" alt="预览">';
-        } else {
-            const icon = getFileIcon(file.name);
-            preview.innerHTML = '<div class="file-preview">' +
-                '<span class="file-icon">' + icon + '</span>' +
-                '<div class="file-info">' +
-                    '<div class="file-name">' + escapeHtml(file.name) + '</div>' +
-                    '<div class="file-size">' + formatFileSize(file.size) + '</div>' +
-                '</div>' +
-                '<button type="button" class="file-remove" onclick="removeFile()">×</button>' +
-            '</div>';
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
-function removeFile() {
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('item-image').value = '';
-    document.getElementById('image-preview').innerHTML = '';
-}
-
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const icons = {
-        'pdf': '📄',
-        'doc': '📝', 'docx': '📝',
-        'ppt': '📊', 'pptx': '📊',
-        'xls': '📈', 'xlsx': '📈',
-        'json': '📋',
-        'txt': '📃',
-        'zip': '📦', 'rar': '📦',
-        'mp3': '🎵', 'wav': '🎵',
-        'mp4': '🎬', 'avi': '🎬',
-    };
-    return icons[ext] || '📎';
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function openModal(type, itemId) {
-    const modal = document.getElementById('modal');
-    const form = document.getElementById('modal-form');
-    const title = document.getElementById('modal-title');
-    
-    form.reset();
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('image-preview').innerHTML = '';
-    document.getElementById('item-type').value = type;
-    document.getElementById('item-id').value = itemId || '';
-    
-    title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
-    document.getElementById('item-date').valueAsDate = new Date();
-    
-    if (itemId) {
-        const items = type === 'life' ? getLifeRecords() : getWorks();
-        let item = null;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].id === itemId) {
-                item = items[i];
-                break;
-            }
-        }
-        if (item) {
-            document.getElementById('item-title').value = item.title;
-            document.getElementById('item-content').value = item.content;
-            document.getElementById('item-date').value = item.date;
-            document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
-            if (item.image) {
-                tempImageData = item.image;
-                tempFileName = item.fileName;
-                tempFileType = item.fileType;
-                tempFileSize = item.fileSize;
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>banli.com</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 注册/登录界面 -->
+    <div id="auth-screen" class="auth-screen">
+        <div class="auth-container">
+            <div class="auth-logo"><span class="logo-icon">◆</span></div>
+            <h1 class="auth-title">欢迎来到我的空间</h1>
+            <p class="auth-subtitle">记录生活 · 收藏作品</p>
+            
+            <!-- 账号列表 -->
+            <div id="account-list" class="account-list" style="display:none;">
+                <h3 style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;">选择账号登录</h3>
+                <div id="accounts"></div>
+            </div>
+            
+            <form id="auth-form" class="auth-form">
+                <div class="input-group">
+                    <input type="text" id="username" placeholder=" " required>
+                    <label id="username-label">用户ID（如：NYS-Kn001）</label>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder=" " required>
+                    <label>密码</label>
+                </div>
+                <div class="input-group" id="confirm-group" style="display:none;">
+                    <input type="password" id="confirm-password" placeholder=" ">
+                    <label>确认密码</label>
+                </div>
+                <p id="auth-error" class="auth-error"></p>
+                <button type="submit" class="auth-btn">登录</button>
+                <p class="auth-switch"><span id="auth-switch-text">还没有账号？</span><a href="#" id="auth-switch-btn">立即注册</a></p>
+                <p class="auth-switch"><a href="#" onclick="openResetModal()">忘记密码？</a></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="main-screen" style="display:none;">
+        <nav class="navbar">
+            <div class="nav-brand">
+                <div class="nav-avatar" id="nav-avatar"></div>
+                <div class="nav-user-info">
+                    <span id="nav-username"></span>
+                    <span class="nav-user-id" id="nav-userid"></span>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-page="home">首页</a>
+                <a href="#" class="nav-link" data-page="life">生活记录</a>
+                <a href="#" class="nav-link" data-page="works">作品集</a>
+                <a href="#" class="nav-link" data-page="friends">好友</a>
+                <a href="#" class="nav-link" data-page="settings">设置</a>
+                <button id="theme-btn" class="theme-btn">🎨 主题</button>
+                <button id="logout-btn" class="logout-btn">退出</button>
+            </div>
+        </nav>
+
+        <section id="page-home" class="page active">
+            <div class="feed-container" id="feed-list"></div>
+            <div id="feed-empty" class="empty-state">
+                <p>还没有动态</p>
+                <p class="empty-hint">去「生活记录」或「作品集」添加内容吧</p>
+            </div>
+        </section>
+
+        <section id="page-life" class="page">
+            <div class="section-header">
+                <h2>生活记录</h2>
+                <button class="add-btn" onclick="openModal('life')">+ 新建记录</button>
+            </div>
+            <div id="life-list" class="card-grid"></div>
+            <div id="life-empty" class="empty-state"><p>还没有生活记录</p></div>
+        </section>
+
+        <section id="page-works" class="page">
+            <div class="section-header">
+                <h2>作品集</h2>
+                <button class="add-btn" onclick="openModal('work')">+ 添加作品</button>
+            </div>
+            <div id="works-list" class="card-grid"></div>
+            <div id="works-empty" class="empty-state"><p>还没有收藏作品</p></div>
+        </section>
+
+        <section id="page-friends" class="page">
+            <div class="section-header">
+                <h2>我的好友</h2>
+                <button class="add-btn" onclick="openAddFriendModal()">+ 添加好友</button>
+            </div>
+            <div id="friend-requests-section" style="display:none;">
+                <h3 style="font-size:16px;margin-bottom:12px;">好友请求</h3>
+                <div id="friend-requests-list"></div>
+            </div>
+            <div id="friends-list" class="friends-grid"></div>
+            <div id="friends-empty" class="empty-state">
+                <p>还没有好友</p>
+                <p class="empty-hint">点击右上角添加好友</p>
+            </div>
+        </section>
+
+        <section id="page-settings" class="page">
+            <div class="settings-container">
+                <h2>个人设置</h2>
                 
-                const preview = document.getElementById('image-preview');
-                if (item.fileType && item.fileType.indexOf('image/') === 0) {
-                    preview.innerHTML = '<img src="' + item.image + '" alt="预览">';
-                } else {
-                    const icon = getFileIcon(item.fileName || '');
-                    preview.innerHTML = '<div class="file-preview">' +
-                        '<span class="file-icon">' + icon + '</span>' +
-                        '<div class="file-info">' +
-                            '<div class="file-name">' + escapeHtml(item.fileName || '附件') + '</div>' +
-                            '<div class="file-size">' + (item.fileSize || '') + '</div>' +
-                        '</div>' +
-                    '</div>';
-                }
-            }
-        }
-    }
-    
-    modal.classList.add('show');
-}
+                <div class="settings-section">
+                    <h3>外观</h3>
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <span class="setting-label">深色模式</span>
+                            <span class="setting-desc">切换为深色背景</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="dark-mode-toggle" onchange="toggleDarkMode()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>头像</h3>
+                    <div class="avatar-section">
+                        <div class="avatar-preview">
+                            <img id="current-avatar" src="" alt="头像">
+                        </div>
+                        <div class="avatar-actions">
+                            <input type="file" id="avatar-input" accept="image/*" style="display:none" onchange="changeAvatar(event)">
+                            <button class="btn-secondary" onclick="document.getElementById('avatar-input').click()">更换头像</button>
+                            <button class="btn-secondary" onclick="resetAvatar()">恢复默认</button>
+                        </div>
+                    </div>
+                </div>
 
-function closeModal(e) {
-    if (e && e.target !== document.getElementById('modal')) return;
-    document.getElementById('modal').classList.remove('show');
-}
+                <div class="settings-section">
+                    <h3>修改用户名</h3>
+                    <form id="username-form" onsubmit="changeUsername(event)">
+                        <div class="form-group">
+                            <label>新用户名（最多12字）</label>
+                            <input type="text" id="new-username" required minlength="2" maxlength="12">
+                        </div>
+                        <p id="username-error" class="auth-error"></p>
+                        <p id="username-success" class="success-message"></p>
+                        <button type="submit" class="btn-primary">修改用户名</button>
+                    </form>
+                </div>
 
-function saveItem(e) {
-    e.preventDefault();
-    
-    const type = document.getElementById('item-type').value;
-    const itemId = document.getElementById('item-id').value;
-    const title = document.getElementById('item-title').value.trim();
-    const content = document.getElementById('item-content').value.trim();
-    const date = document.getElementById('item-date').value;
-    const tagsInput = document.getElementById('item-tags').value.trim();
-    const tags = tagsInput ? tagsInput.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
-    
-    const item = {
-        id: itemId || generateId(),
-        title: title,
-        content: content,
-        date: date,
-        tags: tags,
-        image: tempImageData,
-        fileName: tempFileName,
-        fileType: tempFileType,
-        fileSize: tempFileSize,
-        updatedAt: new Date().toISOString()
-    };
-    
-    if (type === 'life') {
-        const records = getLifeRecords();
-        if (itemId) {
-            for (let i = 0; i < records.length; i++) {
-                if (records[i].id === itemId) {
-                    records[i] = item;
-                    break;
-                }
-            }
-        } else {
-            records.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks();
-        if (itemId) {
-            for (let i = 0; i < works.length; i++) {
-                if (works[i].id === itemId) {
-                    works[i] = item;
-                    break;
-                }
-            }
-        } else {
-            works.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    
-    closeModal();
-    loadData();
-}
+                <div class="settings-section">
+                    <h3>修改密码</h3>
+                    <form id="password-form" onsubmit="changePassword(event)">
+                        <div class="form-group">
+                            <label>当前密码</label>
+                            <input type="password" id="old-password" required>
+                        </div>
+                        <div class="form-group">
+                            <label>新密码</label>
+                            <input type="password" id="new-password" required minlength="4">
+                        </div>
+                        <div class="form-group">
+                            <label>确认新密码</label>
+                            <input type="password" id="confirm-new-password" required>
+                        </div>
+                        <p id="password-error" class="auth-error"></p>
+                        <p id="password-success" class="success-message"></p>
+                        <button type="submit" class="btn-primary">修改密码</button>
+                    </form>
+                </div>
 
-function editItem(type, itemId) {
-    openModal(type, itemId);
-}
+                <div class="settings-section">
+                    <h3>账号信息</h3>
+                    <div class="info-row">
+                        <span class="info-label">用户ID</span>
+                        <span id="settings-userid" class="user-id-badge"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">用户名</span>
+                        <span id="settings-username"></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">注册时间</span>
+                        <span id="settings-created"></span>
+                    </div>
+                </div>
 
-function viewItem(type, itemId) {
-    const items = type === 'life' ? getLifeRecords() : getWorks();
-    let item = null;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].id === itemId) {
-            item = items[i];
-            break;
-        }
-    }
-    if (!item) return;
-    
-    const typeName = type === 'life' ? '生活记录' : '作品';
-    let text = typeName + '\n\n标题：' + item.title + '\n日期：' + new Date(item.date).toLocaleDateString('zh-CN') + '\n\n' + item.content;
-    if (item.tags && item.tags.length > 0) text += '\n标签：' + item.tags.join(', ');
-    if (item.fileName) text += '\n附件：' + item.fileName;
-    alert(text);
-}
+                <div class="settings-section">
+                    <h3>切换账号</h3>
+                    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">退出当前账号，登录其他账号</p>
+                    <button class="btn-secondary" onclick="switchAccount()" style="width:100%;">切换账号</button>
+                </div>
+            </div>
+        </section>
+    </div>
 
-function deleteItem(type, itemId) {
-    if (!confirm('确定要删除吗？')) return;
-    
-    if (type === 'life') {
-        const records = getLifeRecords().filter(function(r) {
-            return r.id !== itemId;
-        });
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks().filter(function(w) {
-            return w.id !== itemId;
-        });
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    loadData();
-}
+    <!-- 主题选择弹窗 -->
+    <div id="theme-modal" class="modal" onclick="closeThemeModal(event)">
+        <div class="modal-content theme-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>选择主题色</h3>
+                <button class="close-btn" onclick="closeThemeModal()">&times;</button>
+            </div>
+            <div class="theme-section">
+                <h4>基础颜色</h4>
+                <div class="theme-grid" id="basic-themes"></div>
+            </div>
+            <div class="theme-section">
+                <h4>长沙地铁</h4>
+                <div class="theme-grid" id="changsha-themes"></div>
+            </div>
+            <div class="theme-section">
+                <h4>广州地铁</h4>
+                <div class="theme-grid" id="guangzhou-themes"></div>
+            </div>
+        </div>
+    </div>
 
-function shareToWeChat(itemId, type) {
-    const modal = document.getElementById('share-modal');
-    const url = window.location.href + '#' + type + '-' + itemId;
-    
-    document.getElementById('share-url').textContent = url;
-    modal.classList.add('show');
-}
+    <!-- 添加好友弹窗 -->
+    <div id="friend-modal" class="modal" onclick="closeFriendModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>添加好友</h3>
+                <button class="close-btn" onclick="closeFriendModal()">&times;</button>
+            </div>
+            <form id="friend-form" onsubmit="sendFriendRequest(event)">
+                <div class="form-group">
+                    <label>对方用户ID</label>
+                    <input type="text" id="friend-id" placeholder="例如：NYS-Kn001" required>
+                </div>
+                <div class="form-group">
+                    <label>验证消息</label>
+                    <textarea id="friend-message" rows="3" placeholder="我是..."></textarea>
+                </div>
+                <p id="friend-error" class="auth-error"></p>
+                <p id="friend-success" class="success-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeFriendModal()">取消</button>
+                    <button type="submit" class="btn-primary">发送请求</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-function closeShareModal(e) {
-    if (e && e.target !== document.getElementById('share-modal')) return;
-    document.getElementById('share-modal').classList.remove('show');
-}
+    <!-- 编辑弹窗 -->
+    <div id="modal" class="modal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modal-title">新建</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="modal-form" onsubmit="saveItem(event)">
+                <input type="hidden" id="item-type">
+                <input type="hidden" id="item-id">
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" id="item-title" required>
+                </div>
+                <div class="form-group">
+                    <label>内容</label>
+                    <div class="emoji-picker" id="emoji-picker"></div>
+                    <textarea id="item-content" rows="4" required placeholder="记录你的生活..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>附件（图片/PDF/PPT/Word/JSON等）</label>
+                    <input type="file" id="item-image" accept="image/*,.pdf,.pptx,.ppt,.docx,.doc,.json,.txt,.xlsx,.xls,.zip,.rar,.mp3,.mp4" onchange="previewFile(event)">
+                    <div id="image-preview" class="image-preview"></div>
+                </div>
+                <div class="form-group">
+                    <label>日期</label>
+                    <input type="date" id="item-date" required>
+                </div>
+                <div class="form-group">
+                    <label>标签（用逗号分隔）</label>
+                    <input type="text" id="item-tags" placeholder="例如：旅行, 美食">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-function copyShareLink() {
-    const url = document.getElementById('share-url').textContent;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(function() {
-            alert('链接已复制，可以粘贴到微信了');
-        }).catch(function() {
-            fallbackCopy(url);
-        });
-    } else {
-        fallbackCopy(url);
-    }
-}
+    <!-- 分享弹窗 -->
+    <div id="share-modal" class="modal" onclick="closeShareModal(event)">
+        <div class="modal-content share-modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>分享到微信</h3>
+                <button class="close-btn" onclick="closeShareModal()">&times;</button>
+            </div>
+            <div class="share-content">
+                <p>请复制链接，粘贴到微信分享</p>
+                <p class="share-url" id="share-url"></p>
+                <button class="btn-primary" onclick="copyShareLink()">复制链接</button>
+            </div>
+        </div>
+    </div>
 
-function fallbackCopy(url) {
-    const input = document.createElement('input');
-    input.value = url;
-    document.body.appendChild(input);
-    input.select();
-    document.execCommand('copy');
-    document.body.removeChild(input);
-    alert('链接已复制');
-}
+    <!-- 重置密码弹窗 -->
+    <div id="reset-modal" class="modal" onclick="closeResetModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>重置密码</h3>
+                <button class="close-btn" onclick="closeResetModal()">&times;</button>
+            </div>
+            <form id="reset-form" onsubmit="resetPassword(event)">
+                <div class="form-group">
+                    <label>选择要重置的账号</label>
+                    <select id="reset-account" style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:14px;">
+                        <option value="">请选择账号</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>管理员口令</label>
+                    <input type="password" id="admin-code" placeholder="请输入管理员口令" required>
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" id="reset-new-password" minlength="4">
+                </div>
+                <div class="form-group">
+                    <label>确认新密码</label>
+                    <input type="password" id="reset-confirm-password">
+                </div>
+                <p id="reset-error" class="auth-error"></p>
+                <p id="reset-success" class="success-message"></p>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeResetModal()">取消</button>
+                    <button type="button" class="btn-secondary" onclick="resetAllData()">重置所有数据</button>
+                    <button type="submit" class="btn-primary">重置密码</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal();
-        closeThemeModal();
-        closeShareModal();
-        closeFriendModal();
-        closeResetModal();
-    }
-});
+    <script src="js/app.js"></script>
+</body>
+</html>
