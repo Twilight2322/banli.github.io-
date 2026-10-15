@@ -60,6 +60,7 @@ const Emojis = [
 
 const MAX_USERNAME_LENGTH = 12;
 const ADMIN_CODE = 'wknwknwkn';
+const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB 限制
 
 let currentUser = null;
 let isLoginMode = false;
@@ -99,6 +100,12 @@ function escapeHtml(text) {
 
 function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 // ==================== 用户管理 ====================
@@ -650,7 +657,6 @@ function handleAuth(e) {
     if (!password) { errorEl.textContent = '请输入密码'; return; }
     
     if (!isLoginMode) {
-        // 注册新账号
         if (username.length > MAX_USERNAME_LENGTH) { 
             errorEl.textContent = '用户名最多' + MAX_USERNAME_LENGTH + '个字符'; 
             return; 
@@ -672,7 +678,6 @@ function handleAuth(e) {
         
         showMainScreen();
     } else {
-        // 登录现有账号
         const users = getAllUsers();
         const user = users[username];
         
@@ -750,7 +755,82 @@ function saveWorks(works) {
     localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
 }
 
-// ==================== 内容加载 ====================
+// ==================== 文件预览（支持 PDF） ====================
+
+function previewFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // 检查文件大小
+    if (file.size > MAX_FILE_SIZE) {
+        alert('文件太大，最大支持 ' + formatFileSize(MAX_FILE_SIZE));
+        e.target.value = '';
+        return;
+    }
+    
+    const preview = document.getElementById('image-preview');
+    
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            preview.innerHTML = '<img src="' + ev.target.result + '" style="max-width:100%;border-radius:8px;">';
+            tempImageData = ev.target.result;
+            tempFileName = file.name;
+            tempFileType = file.type;
+            tempFileSize = file.size;
+        };
+        reader.readAsDataURL(file);
+    } else if (file.type === 'application/pdf') {
+        // PDF 用 Object URL 即时预览
+        const fileURL = URL.createObjectURL(file);
+        preview.innerHTML = 
+            '<embed src="' + fileURL + '" type="application/pdf" width="100%" height="400px" style="border-radius:8px;">' +
+            '<p style="margin-top:8px;color:#666;font-size:13px;">📄 ' + escapeHtml(file.name) + ' (' + formatFileSize(file.size) + ')</p>';
+        
+        // 同时读取为 base64 保存
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            tempImageData = ev.target.result;
+            tempFileName = file.name;
+            tempFileType = file.type;
+            tempFileSize = file.size;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        preview.innerHTML = '<p>📎 已选择文件：' + escapeHtml(file.name) + ' (' + formatFileSize(file.size) + ')</p>';
+        tempImageData = null;
+        tempFileName = file.name;
+        tempFileType = file.type;
+        tempFileSize = file.size;
+    }
+}
+
+// ==================== 内容加载（带文件显示） ====================
+
+function getFileHtml(item) {
+    if (!item.fileData) return '';
+    
+    if (item.fileType === 'application/pdf') {
+        return '<div class="card-file" style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.05);border-radius:8px;">' +
+            '<a href="' + item.fileData + '" target="_blank" download="' + escapeHtml(item.fileName || 'document.pdf') + '" ' +
+            'style="color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:20px;">📄</span>' +
+            '<span>' + escapeHtml(item.fileName || 'PDF 文件') + '</span>' +
+            '<span style="color:#999;font-size:12px;">点击下载/预览</span>' +
+            '</a>' +
+        '</div>';
+    } else if (item.fileType && item.fileType.startsWith('image/')) {
+        return '<div class="card-image" style="margin-top:10px;">' +
+            '<img src="' + item.fileData + '" style="max-width:100%;border-radius:8px;cursor:pointer;" ' +
+            'onclick="window.open(\'' + item.fileData + '\')" alt="' + escapeHtml(item.fileName || '图片') + '">' +
+        '</div>';
+    } else if (item.fileName) {
+        return '<div class="card-file" style="margin-top:10px;padding:10px;background:rgba(0,0,0,0.05);border-radius:8px;">' +
+            '<span>📎 ' + escapeHtml(item.fileName) + '</span>' +
+        '</div>';
+    }
+    return '';
+}
 
 function loadFeed() {
     const life = getLife();
@@ -787,6 +867,7 @@ function loadFeed() {
             '<div class="feed-type">' + typeLabel + '</div>' +
             '<div class="feed-title">' + escapeHtml(item.data.title) + '</div>' +
             '<div class="feed-content">' + escapeHtml(item.data.content) + '</div>' +
+            getFileHtml(item.data) +
             '<div class="feed-date">' + item.data.date + '</div>' +
         '</div>';
     }
@@ -811,6 +892,7 @@ function loadLife() {
         html += '<div class="card">' +
             '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
+            getFileHtml(item) +
             '<div class="card-date">' + item.date + '</div>' +
             '<div class="card-actions">' +
                 '<button class="btn-small" onclick="editItem(\'life\',\'' + item.id + '\')">编辑</button>' +
@@ -839,6 +921,7 @@ function loadWorks() {
         html += '<div class="card">' +
             '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
             '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
+            getFileHtml(item) +
             '<div class="card-date">' + item.date + '</div>' +
             '<div class="card-actions">' +
                 '<button class="btn-small" onclick="editItem(\'work\',\'' + item.id + '\')">编辑</button>' +
@@ -866,6 +949,13 @@ function openModal(type, itemId) {
         title.textContent = itemId ? '编辑作品' : '添加作品';
     }
 
+    // 清空临时文件数据
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
+    document.getElementById('image-preview').innerHTML = '';
+
     if (itemId) {
         const data = type === 'life' ? getLife() : getWorks();
         const items = data[currentUser.userId] || [];
@@ -875,6 +965,22 @@ function openModal(type, itemId) {
                 document.getElementById('item-content').value = items[i].content;
                 document.getElementById('item-date').value = items[i].date;
                 document.getElementById('item-tags').value = items[i].tags || '';
+                
+                // 恢复文件显示
+                if (items[i].fileData) {
+                    tempImageData = items[i].fileData;
+                    tempFileName = items[i].fileName;
+                    tempFileType = items[i].fileType;
+                    tempFileSize = items[i].fileSize;
+                    
+                    const preview = document.getElementById('image-preview');
+                    if (items[i].fileType === 'application/pdf') {
+                        preview.innerHTML = '<p style="padding:10px;background:rgba(0,0,0,0.05);border-radius:8px;">📄 已上传：' + 
+                            escapeHtml(items[i].fileName) + ' (' + formatFileSize(items[i].fileSize || 0) + ')</p>';
+                    } else if (items[i].fileType && items[i].fileType.startsWith('image/')) {
+                        preview.innerHTML = '<img src="' + items[i].fileData + '" style="max-width:100%;border-radius:8px;">';
+                    }
+                }
                 break;
             }
         }
@@ -889,6 +995,11 @@ function openModal(type, itemId) {
 function closeModal(e) {
     if (e && e.target !== document.getElementById('modal')) return;
     document.getElementById('modal').classList.remove('show');
+    // 清空临时数据
+    tempImageData = null;
+    tempFileName = null;
+    tempFileType = null;
+    tempFileSize = null;
 }
 
 function saveItem(e) {
@@ -913,6 +1024,14 @@ function saveItem(e) {
         tags: tags,
         createdAt: new Date().toISOString()
     };
+    
+    // 保存文件数据（如果有）
+    if (tempImageData) {
+        item.fileData = tempImageData;
+        item.fileName = tempFileName;
+        item.fileType = tempFileType;
+        item.fileSize = tempFileSize;
+    }
 
     if (type === 'life') {
         const life = getLife();
@@ -920,6 +1039,13 @@ function saveItem(e) {
         if (itemId) {
             for (let i = 0; i < life[currentUser.userId].length; i++) {
                 if (life[currentUser.userId][i].id === itemId) {
+                    // 保留原有文件数据（如果没有新上传）
+                    if (!tempImageData && life[currentUser.userId][i].fileData) {
+                        item.fileData = life[currentUser.userId][i].fileData;
+                        item.fileName = life[currentUser.userId][i].fileName;
+                        item.fileType = life[currentUser.userId][i].fileType;
+                        item.fileSize = life[currentUser.userId][i].fileSize;
+                    }
                     life[currentUser.userId][i] = item;
                     break;
                 }
@@ -935,6 +1061,13 @@ function saveItem(e) {
         if (itemId) {
             for (let i = 0; i < works[currentUser.userId].length; i++) {
                 if (works[currentUser.userId][i].id === itemId) {
+                    // 保留原有文件数据（如果没有新上传）
+                    if (!tempImageData && works[currentUser.userId][i].fileData) {
+                        item.fileData = works[currentUser.userId][i].fileData;
+                        item.fileName = works[currentUser.userId][i].fileName;
+                        item.fileType = works[currentUser.userId][i].fileType;
+                        item.fileSize = works[currentUser.userId][i].fileSize;
+                    }
                     works[currentUser.userId][i] = item;
                     break;
                 }
@@ -1232,21 +1365,4 @@ function copyShareLink() {
 function closeShareModal(e) {
     if (e && e.target !== document.getElementById('share-modal')) return;
     document.getElementById('share-modal').classList.remove('show');
-}
-
-// ==================== 文件预览 ====================
-
-function previewFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const preview = document.getElementById('image-preview');
-    if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-            preview.innerHTML = '<img src="' + ev.target.result + '" style="max-width:100%;border-radius:8px;">';
-        };
-        reader.readAsDataURL(file);
-    } else {
-        preview.innerHTML = '<p>已选择文件：' + escapeHtml(file.name) + '</p>';
-    }
 }
