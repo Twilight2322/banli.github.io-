@@ -79,7 +79,30 @@ document.addEventListener('DOMContentLoaded', function() {
     initEmojiPicker();
 });
 
-// 用户管理
+// ==================== 工具函数 ====================
+
+function hashPassword(password) {
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+        const char = password.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return 'h' + Math.abs(hash).toString(36);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+// ==================== 用户管理 ====================
+
 function getAllUsers() {
     try {
         const data = localStorage.getItem(StorageKeys.USERS);
@@ -123,7 +146,8 @@ function setCurrentUser(userId) {
     }
 }
 
-// 头像管理
+// ==================== 头像管理 ====================
+
 function getAvatar(userId) {
     try {
         const avatars = JSON.parse(localStorage.getItem(StorageKeys.AVATARS) || '{}');
@@ -145,6 +169,8 @@ function removeAvatar(userId) {
     localStorage.setItem(StorageKeys.AVATARS, JSON.stringify(avatars));
 }
 
+// ==================== 界面切换 ====================
+
 function checkAuth() {
     currentUser = getCurrentUser();
     if (currentUser) {
@@ -153,6 +179,27 @@ function checkAuth() {
         showAuthScreen();
         loadAccountList();
     }
+}
+
+function showMainScreen() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('main-screen').style.display = 'block';
+
+    document.getElementById('nav-username').textContent = currentUser.username;
+    document.getElementById('nav-userid').textContent = currentUser.userId;
+    document.getElementById('settings-userid').textContent = currentUser.userId;
+    document.getElementById('settings-username').textContent = currentUser.username;
+    document.getElementById('settings-created').textContent =
+        new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
+
+    updateAvatarDisplay();
+    loadFeed();
+    loadFriends();
+}
+
+function showAuthScreen() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('main-screen').style.display = 'none';
 }
 
 function loadAccountList() {
@@ -198,6 +245,8 @@ function loginWithAccount(userId) {
     }
 }
 
+// ==================== 事件绑定 ====================
+
 function setupEventListeners() {
     const authForm = document.getElementById('auth-form');
     if (authForm) {
@@ -231,6 +280,54 @@ function setupEventListeners() {
     }
 }
 
+// ==================== 主题 ====================
+
+function loadTheme() {
+    const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
+    currentTheme = saved;
+    applyTheme(saved);
+}
+
+function applyTheme(themeKey) {
+    const theme = Themes[themeKey] || Themes.default;
+    document.documentElement.style.setProperty('--accent', theme.color);
+    currentTheme = themeKey;
+    localStorage.setItem(StorageKeys.THEME, themeKey);
+}
+
+function openThemeModal() {
+    const modal = document.getElementById('theme-modal');
+    renderThemeGrid('basic-themes', ['default', 'black', 'blue', 'green', 'purple', 'orange', 'red', 'teal']);
+    renderThemeGrid('changsha-themes', ['cs1', 'cs2', 'cs3', 'cs4', 'cs5', 'cs6']);
+    renderThemeGrid('guangzhou-themes', ['gz1', 'gz2', 'gz3', 'gz4', 'gz5', 'gz6', 'gz7', 'gz8', 'gz9', 'gz10', 'gz11', 'gz12', 'gz13', 'gz14']);
+    modal.classList.add('show');
+}
+
+function renderThemeGrid(containerId, themeKeys) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    let html = '';
+    for (let i = 0; i < themeKeys.length; i++) {
+        const key = themeKeys[i];
+        const theme = Themes[key];
+        const selected = key === currentTheme ? 'selected' : '';
+        html += '<div class="theme-item ' + selected + '" style="background:' + theme.color + '" onclick="selectTheme(\'' + key + '\')" title="' + theme.name + '"></div>';
+    }
+    container.innerHTML = html;
+}
+
+function selectTheme(key) {
+    applyTheme(key);
+    openThemeModal();
+}
+
+function closeThemeModal(e) {
+    if (e && e.target !== document.getElementById('theme-modal')) return;
+    document.getElementById('theme-modal').classList.remove('show');
+}
+
+// ==================== 深色模式 ====================
+
 function loadDarkMode() {
     const saved = localStorage.getItem(StorageKeys.DARK_MODE) === 'true';
     isDarkMode = saved;
@@ -248,6 +345,8 @@ function applyDarkMode(enabled) {
     const toggle = document.getElementById('dark-mode-toggle');
     if (toggle) toggle.checked = enabled;
 }
+
+// ==================== 表情 ====================
 
 function initEmojiPicker() {
     const picker = document.getElementById('emoji-picker');
@@ -269,6 +368,8 @@ function insertEmoji(emoji) {
     textarea.focus();
     textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
 }
+
+// ==================== 头像显示 ====================
 
 function updateAvatarDisplay() {
     if (!currentUser) return;
@@ -315,6 +416,8 @@ function resetAvatar() {
     loadFeed();
     alert('已恢复默认头像');
 }
+
+// ==================== 修改用户名/密码 ====================
 
 function changeUsername(e) {
     e.preventDefault();
@@ -392,13 +495,14 @@ function changePassword(e) {
     }, 3000);
 }
 
+// ==================== 重置密码 ====================
+
 function openResetModal() {
     document.getElementById('reset-modal').classList.add('show');
     document.getElementById('reset-error').textContent = '';
     document.getElementById('reset-success').textContent = '';
     document.getElementById('reset-form').reset();
     
-    // 加载账号列表到下拉框
     const users = getAllUsers();
     const userIds = Object.keys(users).sort();
     const select = document.getElementById('reset-account');
@@ -432,7 +536,6 @@ function resetAllData() {
         return;
     }
     
-    // 清除所有数据
     localStorage.removeItem(StorageKeys.USERS);
     localStorage.removeItem(StorageKeys.USER_COUNT);
     localStorage.removeItem(StorageKeys.CURRENT_USER);
@@ -501,7 +604,383 @@ function resetPassword(e) {
     }, 2000);
 }
 
-// 好友系统
+// ==================== 登录/注册 ====================
+
+function toggleAuthMode() {
+    isLoginMode = !isLoginMode;
+    const confirmGroup = document.getElementById('confirm-group');
+    const authBtn = document.querySelector('.auth-btn');
+    const switchText = document.getElementById('auth-switch-text');
+    const switchBtn = document.getElementById('auth-switch-btn');
+    const title = document.querySelector('.auth-title');
+    const usernameLabel = document.getElementById('username-label');
+    const usernameInput = document.getElementById('username');
+    
+    if (isLoginMode) {
+        confirmGroup.style.display = 'none';
+        authBtn.textContent = '登录';
+        switchText.textContent = '还没有账号？';
+        switchBtn.textContent = '立即注册';
+        title.textContent = '欢迎回来';
+        usernameLabel.textContent = '用户ID（如：NYS-Kn001）';
+        usernameInput.removeAttribute('maxlength');
+    } else {
+        confirmGroup.style.display = 'block';
+        authBtn.textContent = '创建账号';
+        switchText.textContent = '已有账号？';
+        switchBtn.textContent = '直接登录';
+        title.textContent = '欢迎来到我的空间';
+        usernameLabel.textContent = '你的名称（最多12字）';
+        usernameInput.setAttribute('maxlength', '12');
+    }
+    document.getElementById('auth-error').textContent = '';
+}
+
+function handleAuth(e) {
+    e.preventDefault();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const errorEl = document.getElementById('auth-error');
+    
+    if (!username) { 
+        errorEl.textContent = isLoginMode ? '请输入用户ID' : '请输入名称'; 
+        return; 
+    }
+    if (!password) { errorEl.textContent = '请输入密码'; return; }
+    
+    if (!isLoginMode) {
+        // 注册新账号
+        if (username.length > MAX_USERNAME_LENGTH) { 
+            errorEl.textContent = '用户名最多' + MAX_USERNAME_LENGTH + '个字符'; 
+            return; 
+        }
+        if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
+        if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
+        
+        const userId = generateUserId();
+        const user = { 
+            username: username, 
+            userId: userId,
+            password: hashPassword(password), 
+            createdAt: new Date().toISOString() 
+        };
+        
+        saveUser(userId, user);
+        setCurrentUser(userId);
+        currentUser = user;
+        
+        showMainScreen();
+    } else {
+        // 登录现有账号
+        const users = getAllUsers();
+        const user = users[username];
+        
+        if (!user) {
+            errorEl.textContent = '用户不存在，请检查ID是否正确';
+            return;
+        }
+
+        if (user.password !== hashPassword(password)) {
+            errorEl.textContent = '密码不正确';
+            return;
+        }
+
+        setCurrentUser(username);
+        currentUser = user;
+        showMainScreen();
+    }
+}
+
+function logout() {
+    if (!confirm('确定要退出登录吗？')) return;
+    setCurrentUser(null);
+    currentUser = null;
+    showAuthScreen();
+    loadAccountList();
+}
+
+function switchAccount() {
+    setCurrentUser(null);
+    currentUser = null;
+    showAuthScreen();
+    loadAccountList();
+}
+// ==================== 页面切换 ====================
+
+function switchPage(pageName) {
+    const navLinks = document.querySelectorAll('.nav-link');
+    for (let i = 0; i < navLinks.length; i++) {
+        navLinks[i].classList.toggle('active', navLinks[i].dataset.page === pageName);
+    }
+    const pages = document.querySelectorAll('.page');
+    for (let i = 0; i < pages.length; i++) {
+        pages[i].classList.remove('active');
+    }
+    const target = document.getElementById('page-' + pageName);
+    if (target) target.classList.add('active');
+
+    if (pageName === 'home') loadFeed();
+    if (pageName === 'life') loadLife();
+    if (pageName === 'works') loadWorks();
+    if (pageName === 'friends') loadFriends();
+}
+
+// ==================== 数据管理 ====================
+
+function getLife() {
+    try {
+        const data = localStorage.getItem(StorageKeys.LIFE);
+        return data ? JSON.parse(data) : {};
+    } catch(e) { return {}; }
+}
+
+function saveLife(life) {
+    localStorage.setItem(StorageKeys.LIFE, JSON.stringify(life));
+}
+
+function getWorks() {
+    try {
+        const data = localStorage.getItem(StorageKeys.WORKS);
+        return data ? JSON.parse(data) : {};
+    } catch(e) { return {}; }
+}
+
+function saveWorks(works) {
+    localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
+}
+
+// ==================== 内容加载 ====================
+
+function loadFeed() {
+    const life = getLife();
+    const works = getWorks();
+    const myLife = life[currentUser.userId] || [];
+    const myWorks = works[currentUser.userId] || [];
+
+    const all = [];
+    for (let i = 0; i < myLife.length; i++) {
+        all.push({ type: 'life', data: myLife[i] });
+    }
+    for (let i = 0; i < myWorks.length; i++) {
+        all.push({ type: 'work', data: myWorks[i] });
+    }
+    all.sort(function(a, b) {
+        return new Date(b.data.date) - new Date(a.data.date);
+    });
+
+    const feedList = document.getElementById('feed-list');
+    const feedEmpty = document.getElementById('feed-empty');
+
+    if (all.length === 0) {
+        feedList.innerHTML = '';
+        feedEmpty.style.display = 'block';
+        return;
+    }
+    feedEmpty.style.display = 'none';
+
+    let html = '';
+    for (let i = 0; i < all.length; i++) {
+        const item = all[i];
+        const typeLabel = item.type === 'life' ? '生活记录' : '作品';
+        html += '<div class="feed-item">' +
+            '<div class="feed-type">' + typeLabel + '</div>' +
+            '<div class="feed-title">' + escapeHtml(item.data.title) + '</div>' +
+            '<div class="feed-content">' + escapeHtml(item.data.content) + '</div>' +
+            '<div class="feed-date">' + item.data.date + '</div>' +
+        '</div>';
+    }
+    feedList.innerHTML = html;
+}
+
+function loadLife() {
+    const life = getLife();
+    const myLife = life[currentUser.userId] || [];
+    const list = document.getElementById('life-list');
+    const empty = document.getElementById('life-empty');
+
+    if (myLife.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    let html = '';
+    for (let i = 0; i < myLife.length; i++) {
+        const item = myLife[i];
+        html += '<div class="card">' +
+            '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
+            '<div class="card-date">' + item.date + '</div>' +
+            '<div class="card-actions">' +
+                '<button class="btn-small" onclick="editItem(\'life\',\'' + item.id + '\')">编辑</button>' +
+                '<button class="btn-small btn-danger" onclick="deleteItem(\'life\',\'' + item.id + '\')">删除</button>' +
+            '</div>' +
+        '</div>';
+    }
+    list.innerHTML = html;
+}
+
+function loadWorks() {
+    const works = getWorks();
+    const myWorks = works[currentUser.userId] || [];
+    const list = document.getElementById('works-list');
+    const empty = document.getElementById('works-empty');
+
+    if (myWorks.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+    let html = '';
+    for (let i = 0; i < myWorks.length; i++) {
+        const item = myWorks[i];
+        html += '<div class="card">' +
+            '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
+            '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
+            '<div class="card-date">' + item.date + '</div>' +
+            '<div class="card-actions">' +
+                '<button class="btn-small" onclick="editItem(\'work\',\'' + item.id + '\')">编辑</button>' +
+                '<button class="btn-small btn-danger" onclick="deleteItem(\'work\',\'' + item.id + '\')">删除</button>' +
+            '</div>' +
+        '</div>';
+    }
+    list.innerHTML = html;
+}
+
+// ==================== 弹窗操作 ====================
+
+function openModal(type, itemId) {
+    const modal = document.getElementById('modal');
+    const title = document.getElementById('modal-title');
+    const typeInput = document.getElementById('item-type');
+    const idInput = document.getElementById('item-id');
+
+    typeInput.value = type;
+    idInput.value = itemId || '';
+
+    if (type === 'life') {
+        title.textContent = itemId ? '编辑生活记录' : '新建生活记录';
+    } else {
+        title.textContent = itemId ? '编辑作品' : '添加作品';
+    }
+
+    if (itemId) {
+        const data = type === 'life' ? getLife() : getWorks();
+        const items = data[currentUser.userId] || [];
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].id === itemId) {
+                document.getElementById('item-title').value = items[i].title;
+                document.getElementById('item-content').value = items[i].content;
+                document.getElementById('item-date').value = items[i].date;
+                document.getElementById('item-tags').value = items[i].tags || '';
+                break;
+            }
+        }
+    } else {
+        document.getElementById('modal-form').reset();
+        document.getElementById('item-date').value = new Date().toISOString().split('T')[0];
+    }
+
+    modal.classList.add('show');
+}
+
+function closeModal(e) {
+    if (e && e.target !== document.getElementById('modal')) return;
+    document.getElementById('modal').classList.remove('show');
+}
+
+function saveItem(e) {
+    e.preventDefault();
+    const type = document.getElementById('item-type').value;
+    const itemId = document.getElementById('item-id').value;
+    const title = document.getElementById('item-title').value.trim();
+    const content = document.getElementById('item-content').value.trim();
+    const date = document.getElementById('item-date').value;
+    const tags = document.getElementById('item-tags').value.trim();
+
+    if (!title || !content || !date) {
+        alert('请填写完整信息');
+        return;
+    }
+
+    const item = {
+        id: itemId || generateId(),
+        title: title,
+        content: content,
+        date: date,
+        tags: tags,
+        createdAt: new Date().toISOString()
+    };
+
+    if (type === 'life') {
+        const life = getLife();
+        if (!life[currentUser.userId]) life[currentUser.userId] = [];
+        if (itemId) {
+            for (let i = 0; i < life[currentUser.userId].length; i++) {
+                if (life[currentUser.userId][i].id === itemId) {
+                    life[currentUser.userId][i] = item;
+                    break;
+                }
+            }
+        } else {
+            life[currentUser.userId].push(item);
+        }
+        saveLife(life);
+        loadLife();
+    } else {
+        const works = getWorks();
+        if (!works[currentUser.userId]) works[currentUser.userId] = [];
+        if (itemId) {
+            for (let i = 0; i < works[currentUser.userId].length; i++) {
+                if (works[currentUser.userId][i].id === itemId) {
+                    works[currentUser.userId][i] = item;
+                    break;
+                }
+            }
+        } else {
+            works[currentUser.userId].push(item);
+        }
+        saveWorks(works);
+        loadWorks();
+    }
+
+    closeModal();
+    loadFeed();
+}
+
+function editItem(type, itemId) {
+    openModal(type, itemId);
+}
+
+function deleteItem(type, itemId) {
+    if (!confirm('确定要删除吗？')) return;
+
+    if (type === 'life') {
+        const life = getLife();
+        if (life[currentUser.userId]) {
+            life[currentUser.userId] = life[currentUser.userId].filter(function(item) {
+                return item.id !== itemId;
+            });
+            saveLife(life);
+            loadLife();
+        }
+    } else {
+        const works = getWorks();
+        if (works[currentUser.userId]) {
+            works[currentUser.userId] = works[currentUser.userId].filter(function(item) {
+                return item.id !== itemId;
+            });
+            saveWorks(works);
+            loadWorks();
+        }
+    }
+    loadFeed();
+}
+
+// ==================== 好友系统 ====================
+
 function getFriends() {
     try {
         const data = localStorage.getItem(StorageKeys.FRIENDS);
@@ -741,660 +1220,13 @@ function loadFriends() {
     friendsList.innerHTML = html;
 }
 
-function loadTheme() {
-    const saved = localStorage.getItem(StorageKeys.THEME) || 'default';
-    currentTheme = saved;
-    applyTheme(saved);
-}
+// ==================== 分享 ====================
 
-function applyTheme(themeKey) {
-    const theme = Themes[themeKey] || Themes.default;
-    document.documentElement.style.setProperty('--accent', theme.color);
-    currentTheme = themeKey;
-    localStorage.setItem(StorageKeys.THEME, themeKey);
-}
-
-function openThemeModal() {
-    const modal = document.getElementById('theme-modal');
-    renderThemeGrid('basic-themes', ['default', 'black', 'blue', 'green', 'purple', 'orange', 'red', 'teal']);
-    renderThemeGrid('changsha-themes', ['cs1', 'cs2', 'cs3', 'cs4', 'cs5', 'cs6']);
-    renderThemeGrid('guangzhou-themes', ['gz1', 'gz2', 'gz3', 'gz4', 'gz5', 'gz6', 'gz7', 'gz8', 'gz9', 'gz10', 'gz11', 'gz12', 'gz13', 'gz14']);
-    modal.classList.add('show');
-}
-
-function renderThemeGrid(containerId, themeKeys) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    let html = '';
-    for (let i = 0; i < themeKeys.length; i++) {
-        const key = themeKeys[i];
-        const theme = Themes[key];
-        const selected = key === currentTheme ? 'selected' : '';
-        html += '<div class="theme-item ' + selected + '" style="background:' + theme.color + '" onclick="selectTheme(\'' + key + '\')" title="' + theme.name + '"></div>';
-    }
-    container.innerHTML = html;
-}
-
-function selectTheme(key) {
-    applyTheme(key);
-    openThemeModal();
-}
-
-function closeThemeModal(e) {
-    if (e && e.target !== document.getElementById('theme-modal')) return;
-    document.getElementById('theme-modal').classList.remove('show');
-}
-
-function toggleAuthMode() {
-    isLoginMode = !isLoginMode;
-    const confirmGroup = document.getElementById('confirm-group');
-    const authBtn = document.querySelector('.auth-btn');
-    const switchText = document.getElementById('auth-switch-text');
-    const switchBtn = document.getElementById('auth-switch-btn');
-    const title = document.querySelector('.auth-title');
-    const usernameLabel = document.getElementById('username-label');
-    const usernameInput = document.getElementById('username');
-    
-    if (isLoginMode) {
-        confirmGroup.style.display = 'none';
-        authBtn.textContent = '登录';
-        switchText.textContent = '还没有账号？';
-        switchBtn.textContent = '立即注册';
-        title.textContent = '欢迎回来';
-        usernameLabel.textContent = '用户ID（如：NYS-Kn001）';
-        usernameInput.removeAttribute('maxlength');
-    } else {
-        confirmGroup.style.display = 'block';
-        authBtn.textContent = '创建账号';
-        switchText.textContent = '已有账号？';
-        switchBtn.textContent = '直接登录';
-        title.textContent = '欢迎来到我的空间';
-        usernameLabel.textContent = '你的名称（最多12字）';
-        usernameInput.setAttribute('maxlength', '12');
-    }
-    document.getElementById('auth-error').textContent = '';
-}
-
-function handleAuth(e) {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const confirmPassword = document.getElementById('confirm-password').value;
-    const errorEl = document.getElementById('auth-error');
-    
-    if (!username) { 
-        errorEl.textContent = isLoginMode ? '请输入用户ID' : '请输入名称'; 
-        return; 
-    }
-    if (!password) { errorEl.textContent = '请输入密码'; return; }
-    
-    if (!isLoginMode) {
-        // 注册新账号
-        if (username.length > MAX_USERNAME_LENGTH) { 
-            errorEl.textContent = '用户名最多' + MAX_USERNAME_LENGTH + '个字符'; 
-            return; 
-        }
-        if (password.length < 4) { errorEl.textContent = '密码至少4位'; return; }
-        if (password !== confirmPassword) { errorEl.textContent = '两次密码不一致'; return; }
-        
-        const userId = generateUserId();
-        const user = { 
-            username: username, 
-            userId: userId,
-            password: hashPassword(password), 
-            createdAt: new Date().toISOString() 
-        };
-        
-        saveUser(userId, user);
-        setCurrentUser(userId);
-        currentUser = user;
-        
-        showMainScreen();
-    } else {
-        // 登录现有账号 - 用ID登录
-        const users = getAllUsers();
-        const user = users[username];
-        
-        if (!user) {
-            errorEl.textContent = '用户ID不存在';
-            return;
-        }
-        
-        if (user.password !== hashPassword(password)) {
-            errorEl.textContent = '密码错误';
-            return;
-        }
-        
-        setCurrentUser(username);
-        currentUser = user;
-        showMainScreen();
-    }
-}
-
-function hashPassword(password) {
-    let hash = 0;
-    for (let i = 0; i < password.length; i++) {
-        const char = password.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash;
-    }
-    return hash.toString();
-}
-
-function showMainScreen() {
-    document.getElementById('auth-screen').style.display = 'none';
-    document.getElementById('main-screen').style.display = 'flex';
-    
-    document.getElementById('nav-username').textContent = currentUser.username;
-    document.getElementById('nav-userid').textContent = currentUser.userId;
-    
-    document.getElementById('settings-username').textContent = currentUser.username;
-    document.getElementById('settings-userid').textContent = currentUser.userId;
-    document.getElementById('settings-created').textContent = new Date(currentUser.createdAt).toLocaleDateString('zh-CN');
-    
-    updateAvatarDisplay();
-    loadData();
-    loadFriends();
-}
-
-function showAuthScreen() {
-    document.getElementById('auth-screen').style.display = 'flex';
-    document.getElementById('main-screen').style.display = 'none';
-    loadAccountList();
-}
-
-function logout() {
-    if (confirm('确定要退出吗？')) {
-        setCurrentUser(null);
-        currentUser = null;
-        showAuthScreen();
-        document.getElementById('auth-form').reset();
-    }
-}
-
-function switchAccount() {
-    if (confirm('确定要切换账号吗？')) {
-        setCurrentUser(null);
-        currentUser = null;
-        showAuthScreen();
-        document.getElementById('auth-form').reset();
-        if (!isLoginMode) {
-            toggleAuthMode();
-        }
-    }
-}
-
-function switchPage(pageName) {
-    const navLinks = document.querySelectorAll('.nav-link');
-    for (let i = 0; i < navLinks.length; i++) {
-        if (navLinks[i].dataset.page === pageName) {
-            navLinks[i].classList.add('active');
-        } else {
-            navLinks[i].classList.remove('active');
-        }
-    }
-    
-    const pages = document.querySelectorAll('.page');
-    for (let i = 0; i < pages.length; i++) {
-        if (pages[i].id === 'page-' + pageName) {
-            pages[i].classList.add('active');
-        } else {
-            pages[i].classList.remove('active');
-        }
-    }
-    
-    if (pageName === 'friends') {
-        loadFriends();
-    }
-}
-
-function loadData() {
-    loadFeed();
-    loadLifeRecords();
-    loadWorks();
-}
-
-function loadFeed() {
-    if (!currentUser) return;
-    
-    const lifeRecords = getLifeRecords();
-    const works = getWorks();
-    
-    const allItems = [];
-    for (let i = 0; i < lifeRecords.length; i++) {
-        allItems.push(Object.assign({}, lifeRecords[i], { type: 'life' }));
-    }
-    for (let i = 0; i < works.length; i++) {
-        allItems.push(Object.assign({}, works[i], { type: 'work' }));
-    }
-    
-    allItems.sort(function(a, b) {
-        return new Date(b.date) - new Date(a.date);
+function copyShareLink() {
+    const url = document.getElementById('share-url').textContent;
+    navigator.clipboard.writeText(url).then(function() {
+        alert('链接已复制');
     });
-    
-    const items = allItems.slice(0, 20);
-    
-    const container = document.getElementById('feed-list');
-    const emptyState = document.getElementById('feed-empty');
-    
-    if (items.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < items.length; i++) {
-        html += createFeedItem(items[i]);
-    }
-    container.innerHTML = html;
-}
-
-function createFeedItem(item) {
-    const date = new Date(item.date).toLocaleDateString('zh-CN');
-    const typeName = item.type === 'life' ? '生活' : '作品';
-    
-    let tagsHtml = '';
-    if (item.tags && item.tags.length > 0) {
-        tagsHtml = '<div class="feed-tags">';
-        for (let i = 0; i < item.tags.length; i++) {
-            tagsHtml += '<span class="feed-tag">#' + escapeHtml(item.tags[i]) + '</span>';
-        }
-        tagsHtml += '</div>';
-    }
-    
-    const avatar = getAvatar(currentUser.userId);
-    const avatarHtml = avatar 
-        ? '<img src="' + avatar + '" alt="avatar">'
-        : '<div class="feed-avatar-text">' + currentUser.username.charAt(0).toUpperCase() + '</div>';
-    
-    let fileHtml = '';
-    if (item.image) {
-        if (item.fileType && item.fileType.indexOf('image/') === 0) {
-            fileHtml = '<div class="feed-image" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')"><img src="' + item.image + '" alt=""></div>';
-        } else {
-            const icon = getFileIcon(item.fileName || '');
-            fileHtml = '<div class="feed-file" style="cursor:pointer;" onclick="openFile(\'' + item.id + '\', \'' + item.type + '\')">' +
-                '<span class="feed-file-icon">' + icon + '</span>' +
-                '<span class="feed-file-name">' + escapeHtml(item.fileName || '附件') + ' (' + (item.fileSize || '') + ')</span>' +
-                '<span style="margin-left:auto;color:var(--text-muted);font-size:12px;">点击打开</span>' +
-            '</div>';
-        }
-    }
-    
-    return '<div class="feed-item">' +
-        '<div class="feed-header">' +
-            '<div class="feed-avatar">' + avatarHtml + '</div>' +
-            '<div class="feed-info">' +
-                '<div class="feed-author">' + escapeHtml(currentUser.username) + '</div>' +
-                '<div class="feed-user-id">' + (currentUser.userId || '') + '</div>' +
-                '<div class="feed-time">' + date + '</div>' +
-            '</div>' +
-            '<span class="feed-type ' + item.type + '">' + typeName + '</span>' +
-        '</div>' +
-        '<div class="feed-content">' +
-            '<div class="feed-title">' + escapeHtml(item.title) + '</div>' +
-            '<div class="feed-text">' + escapeHtml(item.content) + '</div>' +
-            fileHtml +
-            tagsHtml +
-        '</div>' +
-        '<div class="feed-actions">' +
-            '<button class="feed-action" onclick="shareToWeChat(\'' + item.id + '\', \'' + item.type + '\')">📤 分享到微信</button>' +
-            '<button class="feed-action" onclick="editItem(\'' + item.type + '\', \'' + item.id + '\')">✏️ 编辑</button>' +
-            '<button class="feed-action delete" onclick="deleteItem(\'' + item.type + '\', \'' + item.id + '\')">🗑️ 删除</button>' +
-        '</div>' +
-    '</div>';
-}
-
-function openFile(itemId, type) {
-    const items = type === 'life' ? getLifeRecords() : getWorks();
-    let item = null;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].id === itemId) {
-            item = items[i];
-            break;
-        }
-    }
-    if (!item || !item.image) return;
-    
-    // 创建新窗口打开文件
-    const newWindow = window.open('', '_blank');
-    if (!newWindow) {
-        alert('请允许弹出窗口以打开文件');
-        return;
-    }
-    
-    if (item.fileType && item.fileType.indexOf('image/') === 0) {
-        // 图片直接显示
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '图片') + '</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;"><img src="' + item.image + '" style="max-width:100%;max-height:100vh;" onclick="window.close()"></body></html>');
-    } else if (item.fileType === 'application/pdf') {
-        // PDF 使用浏览器内置查看器
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || 'PDF') + '</title></head><body style="margin:0;"><embed src="' + item.image + '" type="application/pdf" width="100%" height="100%" style="min-height:100vh;"></body></html>');
-    } else {
-        // 其他文件提供下载
-        newWindow.document.write('<html><head><title>' + escapeHtml(item.fileName || '文件') + '</title></head><body style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:sans-serif;"><div style="text-align:center;"><p>文件无法直接预览</p><a href="' + item.image + '" download="' + escapeHtml(item.fileName || 'file') + '" style="padding:10px 20px;background:#0066cc;color:#fff;text-decoration:none;border-radius:4px;">下载文件</a></div></body></html>');
-    }
-    newWindow.document.close();
-}
-
-function loadLifeRecords() {
-    const records = getLifeRecords();
-    const container = document.getElementById('life-list');
-    const emptyState = document.getElementById('life-empty');
-    
-    if (records.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < records.length; i++) {
-        html += createCard(records[i], 'life');
-    }
-    container.innerHTML = html;
-}
-
-function loadWorks() {
-    const works = getWorks();
-    const container = document.getElementById('works-list');
-    const emptyState = document.getElementById('works-empty');
-    
-    if (works.length === 0) {
-        container.innerHTML = '';
-        emptyState.style.display = 'block';
-        return;
-    }
-    
-    emptyState.style.display = 'none';
-    let html = '';
-    for (let i = 0; i < works.length; i++) {
-        html += createCard(works[i], 'work');
-    }
-    container.innerHTML = html;
-}
-
-function createCard(item, type) {
-    const date = new Date(item.date).toLocaleDateString('zh-CN');
-    
-    let tagsHtml = '';
-    if (item.tags && item.tags.length > 0) {
-        tagsHtml = '<div class="card-tags">';
-        for (let i = 0; i < item.tags.length; i++) {
-            tagsHtml += '<span class="tag">' + escapeHtml(item.tags[i]) + '</span>';
-        }
-        tagsHtml += '</div>';
-    }
-    
-    let fileHtml = '';
-    if (item.image) {
-        if (item.fileType && item.fileType.indexOf('image/') === 0) {
-            fileHtml = '<div class="card-image"><img src="' + item.image + '" alt=""></div>';
-        } else {
-            fileHtml = '<div class="card-tags"><span class="tag">📎 ' + escapeHtml(item.fileName || '附件') + '</span></div>';
-        }
-    }
-    
-    return '<div class="card" onclick="viewItem(\'' + type + '\', \'' + item.id + '\')">' +
-        '<div class="card-date">' + date + '</div>' +
-        '<div class="card-title">' + escapeHtml(item.title) + '</div>' +
-        '<div class="card-content">' + escapeHtml(item.content) + '</div>' +
-        fileHtml +
-        tagsHtml +
-        '<div class="card-actions" onclick="event.stopPropagation()">' +
-            '<button onclick="shareToWeChat(\'' + item.id + '\', \'' + type + '\')">分享</button>' +
-            '<button onclick="editItem(\'' + type + '\', \'' + item.id + '\')">编辑</button>' +
-            '<button class="delete-btn" onclick="deleteItem(\'' + type + '\', \'' + item.id + '\')">删除</button>' +
-        '</div>' +
-    '</div>';
-}
-
-function getLifeRecords() {
-    try {
-        const data = localStorage.getItem(StorageKeys.LIFE);
-        return data ? JSON.parse(data) : [];
-    } catch(e) {
-        return [];
-    }
-}
-
-function getWorks() {
-    try {
-        const data = localStorage.getItem(StorageKeys.WORKS);
-        return data ? JSON.parse(data) : [];
-    } catch(e) {
-        return [];
-    }
-}
-
-function previewFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        tempImageData = event.target.result;
-        tempFileName = file.name;
-        tempFileType = file.type;
-        tempFileSize = formatFileSize(file.size);
-        
-        const preview = document.getElementById('image-preview');
-        
-        if (file.type.indexOf('image/') === 0) {
-            preview.innerHTML = '<img src="' + tempImageData + '" alt="预览">';
-        } else {
-            const icon = getFileIcon(file.name);
-            preview.innerHTML = '<div class="file-preview">' +
-                '<span class="file-icon">' + icon + '</span>' +
-                '<div class="file-info">' +
-                    '<div class="file-name">' + escapeHtml(file.name) + '</div>' +
-                    '<div class="file-size">' + formatFileSize(file.size) + '</div>' +
-                '</div>' +
-                '<button type="button" class="file-remove" onclick="removeFile()">×</button>' +
-            '</div>';
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
-function removeFile() {
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('item-image').value = '';
-    document.getElementById('image-preview').innerHTML = '';
-}
-
-function getFileIcon(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
-    const icons = {
-        'pdf': '📄',
-        'doc': '📝', 'docx': '📝',
-        'ppt': '📊', 'pptx': '📊',
-        'xls': '📈', 'xlsx': '📈',
-        'json': '📋',
-        'txt': '📃',
-        'zip': '📦', 'rar': '📦',
-        'mp3': '🎵', 'wav': '🎵',
-        'mp4': '🎬', 'avi': '🎬',
-    };
-    return icons[ext] || '📎';
-}
-
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
-function openModal(type, itemId) {
-    const modal = document.getElementById('modal');
-    const form = document.getElementById('modal-form');
-    const title = document.getElementById('modal-title');
-    
-    form.reset();
-    tempImageData = null;
-    tempFileName = null;
-    tempFileType = null;
-    tempFileSize = null;
-    document.getElementById('image-preview').innerHTML = '';
-    document.getElementById('item-type').value = type;
-    document.getElementById('item-id').value = itemId || '';
-    
-    title.textContent = itemId ? '编辑' : (type === 'life' ? '新建生活记录' : '添加作品');
-    document.getElementById('item-date').valueAsDate = new Date();
-    
-    if (itemId) {
-        const items = type === 'life' ? getLifeRecords() : getWorks();
-        let item = null;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].id === itemId) {
-                item = items[i];
-                break;
-            }
-        }
-        if (item) {
-            document.getElementById('item-title').value = item.title;
-            document.getElementById('item-content').value = item.content;
-            document.getElementById('item-date').value = item.date;
-            document.getElementById('item-tags').value = item.tags ? item.tags.join(', ') : '';
-            if (item.image) {
-                tempImageData = item.image;
-                tempFileName = item.fileName;
-                tempFileType = item.fileType;
-                tempFileSize = item.fileSize;
-                
-                const preview = document.getElementById('image-preview');
-                if (item.fileType && item.fileType.indexOf('image/') === 0) {
-                    preview.innerHTML = '<img src="' + item.image + '" alt="预览">';
-                } else {
-                    const icon = getFileIcon(item.fileName || '');
-                    preview.innerHTML = '<div class="file-preview">' +
-                        '<span class="file-icon">' + icon + '</span>' +
-                        '<div class="file-info">' +
-                            '<div class="file-name">' + escapeHtml(item.fileName || '附件') + '</div>' +
-                            '<div class="file-size">' + (item.fileSize || '') + '</div>' +
-                        '</div>' +
-                    '</div>';
-                }
-            }
-        }
-    }
-    
-    modal.classList.add('show');
-}
-
-function closeModal(e) {
-    if (e && e.target !== document.getElementById('modal')) return;
-    document.getElementById('modal').classList.remove('show');
-}
-
-function saveItem(e) {
-    e.preventDefault();
-    
-    const type = document.getElementById('item-type').value;
-    const itemId = document.getElementById('item-id').value;
-    const title = document.getElementById('item-title').value.trim();
-    const content = document.getElementById('item-content').value.trim();
-    const date = document.getElementById('item-date').value;
-    const tagsInput = document.getElementById('item-tags').value.trim();
-    const tags = tagsInput ? tagsInput.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
-    
-    const item = {
-        id: itemId || generateId(),
-        title: title,
-        content: content,
-        date: date,
-        tags: tags,
-        image: tempImageData,
-        fileName: tempFileName,
-        fileType: tempFileType,
-        fileSize: tempFileSize,
-        updatedAt: new Date().toISOString()
-    };
-    
-    if (type === 'life') {
-        const records = getLifeRecords();
-        if (itemId) {
-            for (let i = 0; i < records.length; i++) {
-                if (records[i].id === itemId) {
-                    records[i] = item;
-                    break;
-                }
-            }
-        } else {
-            records.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks();
-        if (itemId) {
-            for (let i = 0; i < works.length; i++) {
-                if (works[i].id === itemId) {
-                    works[i] = item;
-                    break;
-                }
-            }
-        } else {
-            works.unshift(item);
-        }
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    
-    closeModal();
-    loadData();
-}
-
-function editItem(type, itemId) {
-    openModal(type, itemId);
-}
-
-function viewItem(type, itemId) {
-    const items = type === 'life' ? getLifeRecords() : getWorks();
-    let item = null;
-    for (let i = 0; i < items.length; i++) {
-        if (items[i].id === itemId) {
-            item = items[i];
-            break;
-        }
-    }
-    if (!item) return;
-    
-    const typeName = type === 'life' ? '生活记录' : '作品';
-    let text = typeName + '\n\n标题：' + item.title + '\n日期：' + new Date(item.date).toLocaleDateString('zh-CN') + '\n\n' + item.content;
-    if (item.tags && item.tags.length > 0) text += '\n标签：' + item.tags.join(', ');
-    if (item.fileName) text += '\n附件：' + item.fileName;
-    alert(text);
-}
-
-function deleteItem(type, itemId) {
-    if (!confirm('确定要删除吗？')) return;
-    
-    if (type === 'life') {
-        const records = getLifeRecords().filter(function(r) {
-            return r.id !== itemId;
-        });
-        localStorage.setItem(StorageKeys.LIFE, JSON.stringify(records));
-    } else {
-        const works = getWorks().filter(function(w) {
-            return w.id !== itemId;
-        });
-        localStorage.setItem(StorageKeys.WORKS, JSON.stringify(works));
-    }
-    loadData();
-}
-
-function shareToWeChat(itemId, type) {
-    const modal = document.getElementById('share-modal');
-    const url = window.location.href + '#' + type + '-' + itemId;
-    
-    document.getElementById('share-url').textContent = url;
-    modal.classList.add('show');
 }
 
 function closeShareModal(e) {
@@ -1402,45 +1234,19 @@ function closeShareModal(e) {
     document.getElementById('share-modal').classList.remove('show');
 }
 
-function copyShareLink() {
-    const url = document.getElementById('share-url').textContent;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(function() {
-            alert('链接已复制，可以粘贴到微信了');
-        }).catch(function() {
-            fallbackCopy(url);
-        });
+// ==================== 文件预览 ====================
+
+function previewFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const preview = document.getElementById('image-preview');
+    if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            preview.innerHTML = '<img src="' + ev.target.result + '" style="max-width:100%;border-radius:8px;">';
+        };
+        reader.readAsDataURL(file);
     } else {
-        fallbackCopy(url);
+        preview.innerHTML = '<p>已选择文件：' + escapeHtml(file.name) + '</p>';
     }
 }
-
-function fallbackCopy(url) {
-    const input = document.createElement('input');
-    input.value = url;
-    document.body.appendChild(input);
-    input.select();
-    document.execCommand('copy');
-    document.body.removeChild(input);
-    alert('链接已复制');
-}
-
-function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal();
-        closeThemeModal();
-        closeShareModal();
-        closeFriendModal();
-        closeResetModal();
-    }
-});
