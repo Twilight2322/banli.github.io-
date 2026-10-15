@@ -1080,7 +1080,15 @@ function saveItem(e) {
     }
 
     closeModal();
-    loadFeed();
+        closeModal();
+    // 强制刷新所有列表
+    setTimeout(function() {
+        loadFeed();
+        loadLife();
+        loadWorks();
+    }, 100);
+}
+
 }
 
 function editItem(type, itemId) {
